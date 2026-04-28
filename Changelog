@@ -1,0 +1,126 @@
+# Changelog
+
+2026-04-27  0.8 (### Lexer hardening, disassembler addr-0 fix)
+    * `inc/lexer.inc`: `lexer.init` trims trailing whitespace/CR; over-length
+      lines now raise a proper error instead of "String too long".
+    * `dis.bas`: fixed addr-0 instruction being dropped when ext labels exist
+      (FOR loop clobbered the main loop's `i%`).
+    * `material/armcfunctions.inc`: new assembler include — `.equ`s for the
+      CMM2 API vector slots and T_*/EXT_*/port-offset constants.
+
+2026-04-26  0.7 (### Disassembler completion)
+    * `inc/disassembler.inc`: added decoding for CPSIE, CPSID, SSAT, USAT,
+      SSAT16, USAT16, PKHBT, PKHTB, SXTB.W, SXTH.W, UXTB.W, UXTH.W, SXTB16,
+      UXTB16, SXTAB, SXTAH, UXTAB, UXTAH, SXTAB16, UXTAB16, SADD8/16, SSUB8/16,
+      SASX, SSAX, UADD8/16, USUB8/16, UASX, USAX, QADD8/16, QSUB8/16, QASX,
+      QSAX, UQADD8/16, UQSUB8/16, UQASX, UQSAX, SHADD8/16, SHSUB8/16, SHASX,
+      SHSAX, UHADD8/16, UHSUB8/16, UHASX, UHSAX, SEL, CLZ, RBIT, REV.W,
+      REV16.W, REVSH.W, QADD, QDADD, QSUB, QDSUB, SMULBB/BT/TB/TT,
+      SMLABB/BT/TB/TT, SMULWB/WT, SMLAWB/WT, SMUAD, SMUADX, SMLAD, SMLADX,
+      SMUSD, SMUSDX, SMLSD, SMLSDX, SMMUL, SMMULR, SMMLA, SMMLAR, SMMLS,
+      SMMLSR, USAD8, USADA8, SMLALBB/BT/TB/TT, SMLALD, SMLALDX, SMLSLD,
+      SMLSLDX, UMAAL, LDREX, LDREXB, LDREXH, STREX, STREXB, STREXH, CLREX.
+    * Mask fixes for existing entries: SXTB/SXTH/UXTB/UXTH and REV/REV16/REVSH
+      (16-bit), MOVW/MOVT, UBFX.
+    * dis.bas: added a second output format which is similar to dumObject
+    * 'inc/disassembler.inc' fix Bcc.W formatting.
+
+2026-04-26  0.6 (### Cleanup pass Q–Z: byte-identity with gas)
+    * `inc/encoder.inc`: SUBW T4 op-nibble shift fix; explicit ADDW/SUBW
+      now skip modImm via `forceW%` flag (group Q).
+    * `inc/encoder.inc`: SBFX/UBFX encode `widthm1`, not msb (group R).
+    * `inc/encoder.inc`: SEL hw0 base `FAA0` (was QADD's `FA80`); DMB
+      dispatcher hw0 `F3BF` (was `F5BF`) (groups S, T).
+    * `inc/encoder.inc`: new `parseSysReg%` resolves the full ARMv7-M
+      special-register set + APSR/CPSR mask suffixes for MRS/MSR (group U).
+    * `inc/encoder.inc`: new `emitLdstT4` helper; LDR/STR(B/H/SB/SH)
+      now honour `[Rn,#imm]!`, `[Rn],#imm`, and negative `#-imm`
+      (groups V, W).
+    * `inc/encoder.inc`: PUSH/POP single-register routes through T3
+      via `emitLdstT4`; added `regListPop%` / `regListSingle%` (group X).
+    * `inc/encoder.inc`, `inc/literals.inc`: `LDR Rt,=value` emits 32-bit
+      T3 placeholder for `.W`/high regs; `flushLit` detects T1 vs T3
+      and patches accordingly. `LDR [PC,#imm]` U-bit now correct.
+      `LDRSB`/`LDRSH` `opc32hi` use T1 base (`F990`/`F9B0`); register-
+      offset mask is `AND &HFF7F` (group Y).
+    * `inc/directives.inc`: `.align`/`.balign`/`.p2align` pad code with
+      NOP (`BF00`) instead of zero halfwords (group Y).
+    * Result: `test/test_thumb32.bin` byte-identical to gas (1196 bytes).
+
+2026-04-25  0.5 (### Assembler .include directive + error fixing)
+    * `inc/encoder.inc`: 3-operand `ADD SP, SP, #imm` and `SUB SP, SP, #imm`
+      now emit the 16-bit T2 form (`B0xx`) when imm fits, matching eabi-as
+      and the 2-operand `ADD/SUB SP, #imm` path.
+    * `inc/tokenizer.inc`: when longest-match picks `BL` but the suffix
+      starts with a real cond (LS/LT/LE), back off to mnemonic `B` so
+      `BLT`/`BLE`/`BLS` tokenise as `B<cond>` instead of `BL` + leftover.
+    * `inc/encoder.inc`: new patch type 4 with parallel `enc.patchAux%()`
+      array carries `(isNz<<3)|Rn` so `backpatchLbl` can rebuild CBZ/CBNZ
+      after the chain pointer overwrites the placeholder slot.
+    * `inc/directives.inc`: `.word` operand falls back to `lookupSym%` when
+      the lexer can't parse a number, so `.equ`-defined names work.
+    * `as.bas`, `inc/directives.inc`: new `.include "name"` directive inserts
+      another source file at the current position. Bare filenames only;
+      searched in CWD then in `as.incdir$`. Each file is read at most once
+      (case-insensitive); a second occurrence is warned and skipped, which
+      also catches recursive includes. Max nesting depth 8.
+
+2026-04-22  0.4 (### Disassembler Thumb-2)
+    * `inc/disassembler.inc`: decode 16-bit SETEND LE / SETEND BE (0xB650 / 0xB658).
+    * `inc/disassembler.inc`: `dis.run` tracks IT state and splices the per-slot
+      T/E condition into the mnemonic of each instruction inside the block via
+      new `dis.applyIT$()` (preserves .W size suffix and operand alignment).
+    * `inc/disassembler.inc`: new `dis.lblOrHex$()` resolves branch/CB*/ADR
+      target addresses to `L<idx>` when present in the label table, else hex.
+      Applied to B, B.W, Bcc, Bcc.W, BL, CBZ, CBNZ, ADR.
+    * `inc/disassembler.inc`: new `dis.decLdm32$()` decodes LDM.W/STM.W/LDMDB/
+      STMDB (with writeback), LDRD/STRD (offset/pre/post-indexed), and TBB/TBH.
+      PUSH.W/POP.W aliases preserved. Added MRS/MSR (with SYSm names) and
+      DMB/DSB/ISB (with barrier option names) via `dis.sysm$()` and `dis.bopt$()`.
+    * `inc/disassembler.inc`: unified `dis.decLdSt32$()` decodes LDR/STR/LDRB/
+      STRB/LDRH/STRH/LDRSB/LDRSH (.W) across imm12, imm8 P/U/W (offset/pre/
+      post-indexed), register (LSL #imm2), and PC-relative literal forms.
+      Replaces the narrow LDR.W/STR.W T2 imm12 handlers.
+    * `inc/disassembler.inc`: decode 32-bit MUL.W/MLA/MLS, SDIV/UDIV, and long
+      multiplies SMULL/UMULL/SMLAL/UMLAL via new `dis.decMul32$()`.
+    * `inc/disassembler.inc`: decode 32-bit DP shifted-register (AND/BIC/ORR/ORN/EOR/
+      ADD/SUB/ADC/SBC/RSB/TST/TEQ/CMP/CMN/MOV/MVN), shift-by-imm/RRX forms, shift-by-
+      register (LSL/LSR/ASR/ROR), extend ops (SXTH/UXTH/SXTB/UXTB/SXTAH/UXTAH/SXTAB/
+      UXTAB with ROR), and REV/REV16/RBIT/REVSH/CLZ.
+    * `inc/encoder.inc`: fix 32-bit DP-register base (&HEB00→&HEA00) and op1_5
+      constants for ADD (3-op), CMP, CMN, SBC. Move shift-by-register op bits from
+      hw1[5:4] to hw0[6:5] per spec. Fix REVSH hw0/hw1 to FA90/…B0. Add optional
+      shift operand parsing to MVN/TST/TEQ/CMN register forms. Output now matches
+      arm-none-eabi-as byte-for-byte across the Thumb-2 DP register group.
+
+2026-04-20  0.3 (### ELF reader + new tools)
+    * `inc/fileio.inc`: ARM ELF reader (`readELFOpen/Close/Merge`, `elf.loadAll`, `elf.loadFunc`);
+      `io.entry%` replaces `lbl.*` coupling in `writeCSUB`.
+    * `as.bas`, `assembler.bas`: set `io.entry%` from label table before `writeCSUB`.
+    * New tools: `as.bas` (CLI assembler), `bin2csub.bas`, `csub2bin.bas`, `elf2csub.bas`.
+
+2026-04-13  0.2 (### Parser + format conversion)
+    * `inc/parser.inc`: `validateLine%` implements IT-block state machine.
+    * `inc/output.inc`: added `loadBinary`, `loadCSUB`.
+    * `assembler.bas`: new `LOAD` / `SAVE` commands with extension auto-detect.
+
+2026-04-11  0.1 (### Initial scaffold)
+    * `assembler.bas`: main program with interactive command prompt (REPL), CLI argument
+      pre-processing, `assembleFile`, `resetState`, `showHelp`, `getCmdToken$`,
+      `stripExt$`, `stripPath$`, `trimStr$`
+    * `inc/config.inc`: all global constants (`CONST`) and variable declarations (`DIM`)
+    * `inc/error.inc`: `showError`, `showWarn`
+    * `inc/mnemonics.inc`: `initMnemonics`, `lookupMne%`, `lookupCond%`, `lookupFlag%`,
+      `lookupShift%`; loads 195 mnemonics from DATA table in `assembler.bas`
+    * `inc/lexer.inc`: stub; declares `lex.line$`, `lex.pos%`
+    * `inc/symbols.inc`: stubs for `defineSym`, `lookupSym%`, `defineLbl`, `refLbl%`,
+      `checkLbls`
+    * `inc/literals.inc`: stubs for `addLit`, `flushLit`, `needsFlushLit%`
+    * `inc/directives.inc`: stub for `processDir`
+    * `inc/tokenizer.inc`: stub for `tokenizeLine`
+    * `inc/parser.inc`: stub for `validateLine%`
+    * `inc/encoder.inc`: stub `encode`; working `emit16`, `emit32`
+    * `inc/output.inc`: stubs for `writeBinaryOut`, `writeCSUBOut`
+    * Fixed unsupported `TRIM$` with custom `trimStr$` using `MID$`/`LEN`
+    * Fixed unsupported `EXIST()` with `DIR$(file$, FILE) = ""`
+    * Fixed unsupported `CONTINUE WHILE` with nested `IF` block
