@@ -10,7 +10,7 @@ new assistent Claude.
 
 This suite contains some basic programs arround ARM assmebler
 
-## as.bas [-lsIf <csub|bin> -o <output file>] <input file>
+## as.bas [-lsIf \<csub|bin\> -o \<output file\>] \<input file\>
 An assembler that understands Thumb and Thumb-2 assembler code. The output is binary code
 
     -f = output format, either 'bin' or 'csub', default is csub
