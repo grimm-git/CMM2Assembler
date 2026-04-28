@@ -1,6 +1,6 @@
 ' ============================================================
-' encoder.inc  -  Pass 3: emit binary for one instruction
-' Phases 4 (16-bit) and 6 (32-bit Thumb-2).
+' encoder.inc - emit binary for one instruction
+'               16-bit and 32-bit Thumb-2
 '
 ' Token stream convention:
 '   tok.str$(0) = mnemonic (upper-case, without S/cond/size)
@@ -99,6 +99,8 @@ END FUNCTION
 ' val% = 32-bit immediate to encode
 SUB encoder.emit32ModImm(op1_5%, S%, Rn%, Rd%, val%)
   LOCAL imm12%, ok%, i%, im3%, im8%
+  LOCAL lo32%
+
   ok% = 0
   imm12% = encoder.modImm12%(val%, ok%)
   IF ok% = 0 THEN showError "Immediate not encodable as Thumb-2 modified immediate" : EXIT SUB
@@ -106,7 +108,6 @@ SUB encoder.emit32ModImm(op1_5%, S%, Rn%, Rd%, val%)
   i%   = (imm12% >> 11) AND 1
   im3% = (imm12% >> 8)  AND 7
   im8% = imm12% AND &HFF
-  LOCAL lo32%
   lo32% = (im3% << 12) OR ((Rd% AND &HF) << 8) OR im8%
   emit32(&HF000 OR (i% << 10) OR (op1_5% << 5) OR (S% << 4) OR (Rn% AND &HF), lo32%)
 END SUB
@@ -116,6 +117,8 @@ END SUB
 ' sh% = SHIFT_xx constant; shimm% = shift amount (0 = no shift)
 SUB encoder.emit32RegDp(op1_5%, S%, Rn%, Rd%, Rm%, sh%, shimm%)
   LOCAL type2%, imm3%, imm2%
+  LOCAL lo32dp%
+
   ' type = sh%-1 for LSL/LSR/ASR/ROR (SHIFT_LSL=1..SHIFT_RRX=5)
   ' RRX is encoded as ROR #0
   IF sh% = SHIFT_RRX THEN
@@ -129,7 +132,6 @@ SUB encoder.emit32RegDp(op1_5%, S%, Rn%, Rd%, Rm%, sh%, shimm%)
   END IF
   imm3% = (shimm% >> 2) AND 7
   imm2% = shimm% AND 3
-  LOCAL lo32dp%
   lo32dp% = (imm3% << 12) OR ((Rd% AND &HF) << 8) OR (imm2% << 6) OR (type2% << 4) OR (Rm% AND &HF)
   emit32(&HEA00 OR (op1_5% << 5) OR (S% << 4) OR (Rn% AND &HF), lo32dp%)
 END SUB
@@ -137,18 +139,19 @@ END SUB
 ' Emit a 32-bit ADD/SUB with 12-bit plain immediate (ADDW/SUBW T4).
 ' addSub%: 0=ADD, 1=SUB; S%: 0/1; Rn,Rd,imm12 (0..4095 straight)
 SUB encoder.emit32AddImm12(addSub%, S%, Rn%, Rd%, imm12%)
+  LOCAL i%, im3%, im8%
   LOCAL op1_5%
+  LOCAL lo32ai%
+  LOCAL op4%
+
   IF addSub% = 0 THEN op1_5% = &H00 ELSE op1_5% = &H0D
   ' T4 encoding: first HW = F200 | S | Rn (for ADD) / F600 | S | Rn (for SUB)
   ' Actually ADD T4: 11110 i 10 0000 S Rn / 0 imm3 Rd imm8
   ' SUB T4: 11110 i 10 1010 S Rn / 0 imm3 Rd imm8
-  LOCAL i%, im3%, im8%
   i%   = (imm12% >> 11) AND 1
   im3% = (imm12% >> 8)  AND 7
   im8% = imm12% AND &HFF
-  LOCAL op4%
   IF addSub% = 0 THEN op4% = 0 ELSE op4% = &HA
-  LOCAL lo32ai%
   lo32ai% = (im3% << 12) OR ((Rd% AND &HF) << 8) OR im8%
   emit32(&HF200 OR (i% << 10) OR (op4% << 4) OR (S% << 4) OR (Rn% AND &HF), lo32ai%)
 END SUB
@@ -158,6 +161,14 @@ END SUB
 ' Type determined from enc.patchType%(off%) (set at emit time).
 SUB backpatchLbl(off%, addr%)
   LOCAL ptype%, pcAddr%, offset%, imm%, imm11%, S%, J1%, J2%, imm10%
+  LOCAL aux%, isNz%, rnCb%, i5Cb%, imm5Cb%
+  LOCAL pliFlag5%, pcAlign5%, delta5%, mag5%
+  LOCAL aux6%, rd6%, isWide6%, pcAlign6%, delta6%
+  LOCAL i4w%, im3w%, im8w%
+  LOCAL nw%, i4nw%, im3nw%, im8nw%
+  LOCAL armCond%
+  LOCAL armCond2%, J1c%, J2c%, imm6%, imm11c%
+
   ptype%  = enc.patchType%(off%)
   pcAddr% = io.base% + off% * 2 + 4   ' Thumb PC = instruction addr + 4
 
@@ -196,7 +207,6 @@ SUB backpatchLbl(off%, addr%)
 
     CASE 4
       ' CBZ / CBNZ T1: 1011 op0 i1 imm5 Rn  (op = isNz, only forward branches)
-      LOCAL aux%, isNz%, rnCb%, i5Cb%, imm5Cb%
       aux%    = enc.patchAux%(off%)
       isNz%   = (aux% >> 3) AND 1
       rnCb%   = aux% AND 7
@@ -211,7 +221,6 @@ SUB backpatchLbl(off%, addr%)
     CASE 5
       ' PLD/PLI literal: hw0 = 1111 100x U001 1111, hw1 = 1111 imm12
       ' patchAux = pli flag (0=PLD, 1=PLI). Range: ±4095, target relative to Align(PC,4).
-      LOCAL pliFlag5%, pcAlign5%, delta5%, mag5%
       pliFlag5% = enc.patchAux%(off%) AND 1
       pcAlign5% = pcAddr% AND &HFFFFFFFC
       delta5%   = addr% - pcAlign5%
@@ -228,7 +237,6 @@ SUB backpatchLbl(off%, addr%)
 
     CASE 6
       ' ADR forward-ref: patchAux bit4=isWide(.W), bits[3:0]=Rd
-      LOCAL aux6%, rd6%, isWide6%, pcAlign6%, delta6%
       aux6%     = enc.patchAux%(off%)
       rd6%      = aux6% AND &HF
       isWide6%  = (aux6% >> 4) AND 1
@@ -246,14 +254,12 @@ SUB backpatchLbl(off%, addr%)
         io.buffer%(off%) = &HA000 OR (rd6% << 8) OR (delta6% / 4)
       ELSE
         IF delta6% >= 0 AND delta6% <= 4095 THEN
-          LOCAL i4w%, im3w%, im8w%
           i4w%  = (delta6% >> 11) AND 1
           im3w% = (delta6% >> 8) AND 7
           im8w% = delta6% AND &HFF
           io.buffer%(off%)     = &HF20F OR (i4w% << 10)
           io.buffer%(off% + 1) = (im3w% << 12) OR ((rd6% AND &HF) << 8) OR im8w%
         ELSEIF delta6% < 0 AND delta6% >= -4095 THEN
-          LOCAL nw%, i4nw%, im3nw%, im8nw%
           nw%    = -delta6%
           i4nw%  = (nw% >> 11) AND 1
           im3nw% = (nw% >> 8) AND 7
@@ -268,7 +274,6 @@ SUB backpatchLbl(off%, addr%)
     CASE IS >= 20
       IF ptype% < 40 THEN
         ' Bcond T1: 16-bit conditional,  ARM cond = ptype% - 20
-        LOCAL armCond%
         armCond% = ptype% - 20
         offset% = addr% - pcAddr%
         IF (offset% MOD 2) <> 0 THEN showError "Branch target misaligned" : EXIT SUB
@@ -277,7 +282,6 @@ SUB backpatchLbl(off%, addr%)
         io.buffer%(off%) = &HD000 OR (armCond% << 8) OR (imm% AND &HFF)
       ELSE
         ' B T3: 32-bit conditional, ARM cond = ptype% - 40
-        LOCAL armCond2%, J1c%, J2c%, imm6%, imm11c%
         armCond2% = ptype% - 40
         offset% = (addr% - pcAddr%) / 2
         S%     = (offset% >> 23) AND 1
@@ -537,7 +541,12 @@ END SUB
 ' MOV  -  move immediate or register
 ' ============================================================
 SUB encoder.doMov(op%, fl%, cc%, sz%)
-  LOCAL i%, rd%, rm%, imm%, ok%, S%
+    LOCAL i%, rd%, rm%, imm%, ok%, S%
+    LOCAL sh%, shimm%
+    LOCAL type2%
+    LOCAL imm3%, imm2%
+    LOCAL sh2%, shimm2%
+
   S% = (fl% = FLAG_S)
   i% = op%
   IF tok.type%(i%) <> TT_REGLO AND tok.type%(i%) <> TT_REGHI THEN
@@ -565,7 +574,6 @@ SUB encoder.doMov(op%, fl%, cc%, sz%)
     IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
     IF i% < tok.count% AND tok.type%(i%) = TT_SHIFT THEN
       ' MOV.W Rd, Rm, <shift> #n  (32-bit)
-      LOCAL sh%, shimm%
       sh% = tok.val%(i%) : i% = i% + 1
       shimm% = 0
       IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN shimm% = tok.val%(i%) : i% = i% + 1
@@ -574,9 +582,7 @@ SUB encoder.doMov(op%, fl%, cc%, sz%)
         emit32(&HEA4F, ((rd% AND &HF) << 8) OR &H30 OR (rm% AND &HF))
       ELSE
         ' LSL/LSR/ASR/ROR T3 (shift-by-imm)
-        LOCAL type2%
         type2% = sh% - 1
-        LOCAL imm3%, imm2%
         imm3% = (shimm% >> 2) AND 7 : imm2% = shimm% AND 3
         emit32(&HEA4F OR (S% << 4), (imm3% << 12) OR ((rd% AND &HF) << 8) OR (imm2% << 6) OR (type2% << 4) OR (rm% AND &HF))
       END IF
@@ -600,7 +606,6 @@ SUB encoder.doMov(op%, fl%, cc%, sz%)
       showError "MOV: bad operand" : EXIT SUB
     END IF
     rm% = tok.val%(i%) : i% = i% + 1
-    LOCAL sh2%, shimm2%
     sh2% = SHIFT_NONE : shimm2% = 0
     IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
     IF i% < tok.count% AND tok.type%(i%) = TT_SHIFT THEN
@@ -614,6 +619,7 @@ END SUB
 ' MOVW: 16-bit zero-extended immediate  T3
 SUB encoder.doMovw(op%, fl%, cc%, sz%)
   LOCAL i%, rd%, imm%
+  LOCAL i4%, imm4%, im3%, im8%
   i% = op%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "MOVW: expected register" : EXIT SUB
   rd% = tok.val%(i%) : i% = i% + 1
@@ -621,7 +627,6 @@ SUB encoder.doMovw(op%, fl%, cc%, sz%)
   IF tok.type%(i%) <> TT_IMM THEN showError "MOVW: expected immediate" : EXIT SUB
   imm% = tok.val%(i%) AND &HFFFF
   ' MOVW T3: 11110 i 10 0100 imm4 | 0 imm3 Rd imm8
-  LOCAL i4%, imm4%, im3%, im8%
   i4%   = (imm% >> 11) AND 1
   imm4% = (imm% >> 12) AND &HF
   im3%  = (imm% >> 8)  AND 7
@@ -632,13 +637,13 @@ END SUB
 ' MOVT: top halfword  T1
 SUB encoder.doMovt(op%, fl%, cc%, sz%)
   LOCAL i%, rd%, imm%
+  LOCAL i4%, imm4%, im3%, im8%
   i% = op%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "MOVT: expected register" : EXIT SUB
   rd% = tok.val%(i%) : i% = i% + 1
   IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
   IF tok.type%(i%) <> TT_IMM THEN showError "MOVT: expected immediate" : EXIT SUB
   imm% = tok.val%(i%) AND &HFFFF
-  LOCAL i4%, imm4%, im3%, im8%
   i4%   = (imm% >> 11) AND 1
   imm4% = (imm% >> 12) AND &HF
   im3%  = (imm% >> 8)  AND 7
@@ -681,6 +686,8 @@ END SUB
 ' ============================================================
 SUB encoder.doAdd(op%, fl%, cc%, sz%)
   LOCAL i%, rd%, rn%, rm%, imm%, S%, has_imm%, has_rm%, sh%, shimm%, ok%, negVal%, forceW%
+  LOCAL imm12t%
+  LOCAL i4a%, im3a%, im8a%, adrimm%
   S% = (fl% = FLAG_S)
   forceW% = (tok.str$(0) = "ADDW")
   i% = op%
@@ -721,7 +728,6 @@ SUB encoder.doAdd(op%, fl%, cc%, sz%)
     ' 32-bit: try modified immediate first, then plain imm12
     IF sz% = SIZE_N THEN showError "ADD: imm too large for 16-bit" : EXIT SUB
     ok% = 0
-    LOCAL imm12t%
     imm12t% = encoder.modImm12%(imm%, ok%)
     IF ok% AND NOT forceW% THEN
       ' ADD.W / ADDS.W T3 with modified immediate  (op1=0x08=ADD)
@@ -817,7 +823,6 @@ SUB encoder.doAdd(op%, fl%, cc%, sz%)
       END IF
       ' ADR T3 32-bit
       IF sz% = SIZE_N THEN showError "ADR: offset too large for 16-bit" : EXIT SUB
-      LOCAL i4a%, im3a%, im8a%, adrimm%
       adrimm% = imm% AND &HFFF
       i4a%  = (adrimm% >> 11) AND 1
       im3a% = (adrimm% >> 8)  AND 7
@@ -1166,6 +1171,10 @@ END SUB
 ' ============================================================
 SUB encoder.doShift(op%, fl%, cc%, sz%, shType%)
   LOCAL i%, rd%, rm%, rs%, imm%, S%, dp16op%
+  LOCAL opc5i%, type2si%, im3si%, im2si%
+  LOCAL op1r%
+  LOCAL opc5%, type2s%, im3s%, im2s%
+  LOCAL op1rs%
   S% = (fl% = FLAG_S)
   i% = op%
   ' 16-bit data-processing shift ops: LSL=0010, LSR=0011, ASR=0100, ROR=0111
@@ -1187,7 +1196,6 @@ SUB encoder.doShift(op%, fl%, cc%, sz%, shType%)
     rm% = rd%
     ' Fall through to 3-operand immediate handling below via a goto-like jump...
     ' Actually inline it here:
-    LOCAL opc5i%
     SELECT CASE shType%
       CASE SHIFT_LSL : opc5i% = 0
       CASE SHIFT_LSR : opc5i% = 1
@@ -1197,7 +1205,6 @@ SUB encoder.doShift(op%, fl%, cc%, sz%, shType%)
     IF S% AND opc5i% >= 0 AND rd% <= 7 AND rm% <= 7 AND imm% >= 0 AND imm% <= 31 AND sz% <> SIZE_W THEN
       emit16((opc5i% << 11) OR (imm% << 6) OR (rm% << 3) OR rd%)
     ELSE
-      LOCAL type2si%, im3si%, im2si%
       IF shType% = SHIFT_ROR THEN type2si% = 3 ELSE type2si% = shType% - 1
       im3si% = (imm% >> 2) AND 7 : im2si% = imm% AND 3
       emit32(&HEA4F OR (S% << 4), (im3si% << 12) OR ((rd% AND &HF) << 8) OR (im2si% << 6) OR (type2si% << 4) OR (rm% AND &HF))
@@ -1216,7 +1223,6 @@ SUB encoder.doShift(op%, fl%, cc%, sz%, shType%)
       emit16(dp16op% OR (rs% << 3) OR rd%)
     ELSE
       ' T2 32-bit shift-by-register
-      LOCAL op1r%
       SELECT CASE shType%
         CASE SHIFT_LSL : op1r% = 0
         CASE SHIFT_LSR : op1r% = 1
@@ -1235,7 +1241,6 @@ SUB encoder.doShift(op%, fl%, cc%, sz%, shType%)
     imm% = tok.val%(i%)
     ' Shift-by-immediate
     ' LSLS/LSRS/ASRS T1 16-bit: 000 opc imm5 Rm Rd
-    LOCAL opc5%
     SELECT CASE shType%
       CASE SHIFT_LSL : opc5% = 0
       CASE SHIFT_LSR : opc5% = 1
@@ -1246,7 +1251,6 @@ SUB encoder.doShift(op%, fl%, cc%, sz%, shType%)
       emit16((opc5% << 11) OR (imm% << 6) OR (rm% << 3) OR rd%)
     ELSE
       ' 32-bit shift-by-imm (MOV encoding with shift)
-      LOCAL type2s%, im3s%, im2s%
       IF shType% = SHIFT_ROR THEN type2s% = 3 ELSE type2s% = shType% - 1
       im3s% = (imm% >> 2) AND 7 : im2s% = imm% AND 3
       emit32(&HEA4F OR (S% << 4), (im3s% << 12) OR ((rd% AND &HF) << 8) OR (im2s% << 6) OR (type2s% << 4) OR (rm% AND &HF))
@@ -1257,7 +1261,6 @@ SUB encoder.doShift(op%, fl%, cc%, sz%, shType%)
     IF S% AND dp16op% >= 0 AND rd% = rm% AND rd% <= 7 AND rs% <= 7 AND sz% <> SIZE_W THEN
       emit16(dp16op% OR (rs% << 3) OR rd%)
     ELSE
-      LOCAL op1rs%
       SELECT CASE shType%
         CASE SHIFT_LSL : op1rs% = 0
         CASE SHIFT_LSR : op1rs% = 1
@@ -1421,6 +1424,11 @@ END SUB
 
 SUB encoder.doLdr(op%, fl%, cc%, sz%)
   LOCAL i%, rt%, rn%, rm%, imm%, sh%, shimm%, addr%, litOff%
+  LOCAL litVal%, ok32%, imm4l%, i16l%, imm3l%, imm8l%
+  LOCAL dummy12%
+  LOCAL preBang%
+  LOCAL pcU%, pcMag%
+  LOCAL type2l%
   i% = op%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "LDR: expected Rt" : EXIT SUB
   rt% = tok.val%(i%) : i% = i% + 1
@@ -1428,11 +1436,9 @@ SUB encoder.doLdr(op%, fl%, cc%, sz%)
 
   ' LDR Rt,=value  →  MOV.W / MOVW when possible, else literal pool
   IF tok.type%(i%) = TT_LIT THEN
-    LOCAL litVal%, ok32%, imm4l%, i16l%, imm3l%, imm8l%
     litVal% = tok.val%(i%)
     ' Try MOV.W with modified immediate (covers 0..255 and many other values)
     ok32% = 0
-    LOCAL dummy12%
     dummy12% = encoder.modImm12%(litVal%, ok32%)
     IF ok32% THEN
       encoder.emit32ModImm(&H02, 0, &HF, rt%, litVal%)
@@ -1499,7 +1505,6 @@ SUB encoder.doLdr(op%, fl%, cc%, sz%)
   IF tok.type%(i%) = TT_IMM OR tok.type%(i%) = TT_ADDR THEN
     IF tok.type%(i%) = TT_ADDR THEN imm% = lookupSym%(tok.str$(i%)) ELSE imm% = tok.val%(i%)
     i% = i% + 1
-    LOCAL preBang%
     preBang% = 0
     IF tok.type%(i%) = TT_RBRA THEN
       i% = i% + 1
@@ -1519,7 +1524,6 @@ SUB encoder.doLdr(op%, fl%, cc%, sz%)
       IF rt% <= 7 AND (imm% AND 3) = 0 AND imm% >= 0 AND imm% <= 1020 AND sz% <> SIZE_W THEN
         emit16(&H4800 OR (rt% << 8) OR (imm% / 4))
       ELSE
-        LOCAL pcU%, pcMag%
         IF imm% < 0 OR imm% > &H7FFFFFFF THEN
           pcU% = 0
           pcMag% = (-imm%) AND &HFFFFFFFF
@@ -1558,7 +1562,6 @@ SUB encoder.doLdr(op%, fl%, cc%, sz%)
     IF rt% <= 7 AND rn% <= 7 AND rm% <= 7 AND sh% = SHIFT_NONE AND sz% <> SIZE_W THEN
       emit16(&H5800 OR (rm% << 6) OR (rn% << 3) OR rt%)
     ELSE
-      LOCAL type2l%
       IF sh% = SHIFT_NONE THEN type2l% = 0 : shimm% = 0 ELSE type2l% = sh% - 1
       emit32(&HF850 OR (rn% AND &HF), ((rt% AND &HF) << 12) OR (shimm% << 4) OR (type2l% << 4) OR (rm% AND &HF))
     END IF
@@ -1573,6 +1576,7 @@ END SUB
 SUB encoder.doLdrx(op%, fl%, cc%, sz%, size%, signed%)
   LOCAL i%, rt%, rn%, rm%, imm%, sh%, shimm%
   LOCAL opc16%, opc32hi%
+  LOCAL ldrxPreBang%
   i% = op%
   ' 16-bit register-offset opcodes: 0101 opc Rm Rn Rt
   ' STRB=010, LDRB=110, STRH=001, LDRH=101, LDRSB=011, LDRSH=111
@@ -1615,7 +1619,6 @@ SUB encoder.doLdrx(op%, fl%, cc%, sz%, size%, signed%)
 
   IF tok.type%(i%) = TT_IMM THEN
     imm% = tok.val%(i%) : i% = i% + 1
-    LOCAL ldrxPreBang%
     ldrxPreBang% = 0
     IF tok.type%(i%) = TT_RBRA THEN
       i% = i% + 1
@@ -1663,6 +1666,8 @@ END SUB
 ' ============================================================
 SUB encoder.doStr(op%, fl%, cc%, sz%)
   LOCAL i%, rt%, rn%, rm%, imm%, sh%, shimm%
+  LOCAL strPreBang%
+  LOCAL type2t%
   i% = op%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "STR: expected Rt" : EXIT SUB
   rt% = tok.val%(i%) : i% = i% + 1
@@ -1695,7 +1700,6 @@ SUB encoder.doStr(op%, fl%, cc%, sz%)
   IF tok.type%(i%) = TT_IMM OR tok.type%(i%) = TT_ADDR THEN
     IF tok.type%(i%) = TT_ADDR THEN imm% = lookupSym%(tok.str$(i%)) ELSE imm% = tok.val%(i%)
     i% = i% + 1
-    LOCAL strPreBang%
     strPreBang% = 0
     IF tok.type%(i%) = TT_RBRA THEN
       i% = i% + 1
@@ -1731,7 +1735,6 @@ SUB encoder.doStr(op%, fl%, cc%, sz%)
     IF rt% <= 7 AND rn% <= 7 AND rm% <= 7 AND sh% = SHIFT_NONE AND sz% <> SIZE_W THEN
       emit16(&H5000 OR (rm% << 6) OR (rn% << 3) OR rt%)
     ELSE
-      LOCAL type2t%
       IF sh% = SHIFT_NONE THEN type2t% = 0 : shimm% = 0 ELSE type2t% = sh% - 1
       emit32(&HF840 OR (rn% AND &HF), ((rt% AND &HF) << 12) OR (shimm% << 4) OR (type2t% << 4) OR (rm% AND &HF))
     END IF
@@ -1744,6 +1747,7 @@ END SUB
 SUB encoder.doStrx(op%, fl%, cc%, sz%, size%)
   LOCAL i%, rt%, rn%, rm%, imm%, sh%, shimm%
   LOCAL opc16%, opc32hi%
+  LOCAL strxPreBang%
   IF size% = 1 THEN opc16% = &H5400 ELSE opc16% = &H5200
   IF size% = 1 THEN opc32hi% = &HF880 ELSE opc32hi% = &HF8A0
   i% = op%
@@ -1778,7 +1782,6 @@ SUB encoder.doStrx(op%, fl%, cc%, sz%, size%)
 
   IF tok.type%(i%) = TT_IMM THEN
     imm% = tok.val%(i%) : i% = i% + 1
-    LOCAL strxPreBang%
     strxPreBang% = 0
     IF tok.type%(i%) = TT_RBRA THEN
       i% = i% + 1
@@ -1913,11 +1916,11 @@ END FUNCTION
 
 SUB encoder.doPush(op%, fl%, cc%, sz%)
   LOCAL i%, bitmask%
+  LOCAL has_lr%
   i% = op%
   IF tok.type%(i%) <> TT_RLIST THEN showError "PUSH: expected register list" : EXIT SUB
   bitmask% = tok.val%(i%)
   ' 16-bit T1: R0-R7 + optional LR (bit14), no other hi regs
-  LOCAL has_lr%
   has_lr% = (bitmask% AND &H4000) <> 0
   IF (bitmask% AND &HBF00) = 0 AND sz% <> SIZE_W THEN
     ' Only R0-R7 + LR
@@ -1933,11 +1936,11 @@ END SUB
 
 SUB encoder.doPop(op%, fl%, cc%, sz%)
   LOCAL i%, bitmask%
+  LOCAL has_pc%
   i% = op%
   IF tok.type%(i%) <> TT_RLIST THEN showError "POP: expected register list" : EXIT SUB
   bitmask% = tok.val%(i%)
   ' 16-bit T1: R0-R7 + optional PC (bit15), no other hi regs
-  LOCAL has_pc%
   has_pc% = (bitmask% AND &H8000) <> 0
   IF (bitmask% AND &H7F00) = 0 AND sz% <> SIZE_W THEN
     emit16(&HBC00 OR (has_pc% << 8) OR (bitmask% AND &HFF))
@@ -1955,6 +1958,10 @@ END SUB
 SUB encoder.doAdr(op%, fl%, cc%, sz%)
   LOCAL i%, rd%, imm%, addr%, off%
   LOCAL lbl$ LENGTH MAX_NAME_LEN
+  LOCAL i4d%, im3d%, im8d%
+  LOCAL pcAlignS%, deltaS%
+  LOCAL nd%, i4n%, im3n%, im8n%
+  LOCAL tgt%
   i% = op%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "ADR: expected Rd" : EXIT SUB
   rd% = tok.val%(i%) : i% = i% + 1
@@ -1964,7 +1971,6 @@ SUB encoder.doAdr(op%, fl%, cc%, sz%)
     IF rd% <= 7 AND (imm% AND 3) = 0 AND imm% >= 0 AND imm% <= 1020 AND sz% <> SIZE_W THEN
       emit16(&HA000 OR (rd% << 8) OR (imm% / 4))
     ELSE
-      LOCAL i4d%, im3d%, im8d%
       i4d% = (imm% >> 11) AND 1 : im3d% = (imm% >> 8) AND 7 : im8d% = imm% AND &HFF
       emit32(&HF20F OR (i4d% << 10), (im3d% << 12) OR ((rd% AND &HF) << 8) OR im8d%)
     END IF
@@ -1974,17 +1980,14 @@ SUB encoder.doAdr(op%, fl%, cc%, sz%)
     ' .equ symbols must be defined before use; resolve immediately.
     IF symExists%(lbl$) THEN
       addr% = lookupSym%(lbl$)
-      LOCAL pcAlignS%, deltaS%
       pcAlignS% = (io.base% + off% * 2 + 4) AND &HFFFFFFFC
       deltaS%   = addr% - pcAlignS%
       IF rd% <= 7 AND deltaS% >= 0 AND deltaS% <= 1020 AND (deltaS% AND 3) = 0 AND sz% <> SIZE_W THEN
         emit16(&HA000 OR (rd% << 8) OR (deltaS% / 4))
       ELSEIF deltaS% >= 0 AND deltaS% <= 4095 THEN
-        LOCAL i4d%, im3d%, im8d%
         i4d% = (deltaS% >> 11) AND 1 : im3d% = (deltaS% >> 8) AND 7 : im8d% = deltaS% AND &HFF
         emit32(&HF20F OR (i4d% << 10), (im3d% << 12) OR ((rd% AND &HF) << 8) OR im8d%)
       ELSEIF deltaS% < 0 AND deltaS% >= -4095 THEN
-        LOCAL nd%, i4n%, im3n%, im8n%
         nd% = -deltaS%
         i4n% = (nd% >> 11) AND 1 : im3n% = (nd% >> 8) AND 7 : im8n% = nd% AND &HFF
         emit32(&HF2AF OR (i4n% << 10), (im3n% << 12) OR ((rd% AND &HF) << 8) OR im8n%)
@@ -1995,7 +1998,6 @@ SUB encoder.doAdr(op%, fl%, cc%, sz%)
     END IF
     ' Label form (may be forward reference): emit placeholder, set patch type,
     ' then call refLbl. Resolved → backpatch immediately; unresolved → chained.
-    LOCAL tgt%
     IF sz% = SIZE_W THEN
       emit32(&HF20F, ((rd% AND &HF) << 8))
       enc.patchType%(off%) = 6
@@ -2018,13 +2020,13 @@ END SUB
 SUB encoder.doBranch(op%, fl%, cc%, sz%)
   LOCAL i%, offset%, imm%, pcAddr%, off%
   LOCAL lbl$ LENGTH MAX_NAME_LEN
+  LOCAL tgt%
   i% = op%
   IF tok.type%(i%) <> TT_ADDR THEN showError "B: expected label" : EXIT SUB
   lbl$ = tok.str$(i%)
   off% = io.ptr%
   pcAddr% = io.base% + off% * 2 + 4
 
-  LOCAL tgt%
   IF cc% = COND_NONE THEN
     ' Unconditional B
     IF sz% = SIZE_W THEN
@@ -2088,6 +2090,7 @@ END SUB
 SUB encoder.doBl(op%, fl%, cc%, sz%)
   LOCAL i%, off%, tgt%, offset%, S%, J1%, J2%, imm10%, imm11%
   LOCAL lbl$ LENGTH MAX_NAME_LEN
+  LOCAL pcAddr%
   i% = op%
   IF tok.type%(i%) <> TT_ADDR THEN showError "BL: expected label" : EXIT SUB
   lbl$ = tok.str$(i%)
@@ -2096,7 +2099,6 @@ SUB encoder.doBl(op%, fl%, cc%, sz%)
   enc.patchType%(off%) = 3
   tgt% = encoder.resolveLabel%(lbl$, off%)
   IF tgt% >= 0 THEN
-    LOCAL pcAddr%
     pcAddr% = io.base% + off% * 2 + 4
     offset% = (tgt% - pcAddr%) / 2
     S%     = (offset% >> 23) AND 1
@@ -2237,6 +2239,7 @@ END SUB
 
 SUB encoder.doExtendOp(op%, fl%, cc%, sz%, subOp%)
   LOCAL i%, rd%, rm%, rot%, rotOk%
+  LOCAL op32h%
   i% = op%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "Extend: expected Rd" : EXIT SUB
   rd% = tok.val%(i%) : i% = i% + 1
@@ -2249,7 +2252,6 @@ SUB encoder.doExtendOp(op%, fl%, cc%, sz%, subOp%)
     emit16(&HB200 OR (subOp% << 6) OR (rm% << 3) OR rd%)
   ELSE
     ' 32-bit T2: SXTH=FA0F, SXTB=FA4F, UXTH=FA1F, UXTB=FA5F (Rn=1111)
-    LOCAL op32h%
     SELECT CASE subOp%
       CASE 0 : op32h% = &HFA0F  ' SXTH
       CASE 1 : op32h% = &HFA4F  ' SXTB
@@ -2724,6 +2726,7 @@ END SUB
 ' ============================================================
 SUB encoder.doBitfield(op%, fl%, cc%, sz%, isUbfx%)
   LOCAL i%, rd%, rn%, lsb%, width%
+  LOCAL widthm1%, imm3%, imm2%
   i% = op%
   IF i% >= tok.count% OR (tok.type%(i%) <> TT_REGLO AND tok.type%(i%) <> TT_REGHI) THEN showError "BFX: expected Rd" : EXIT SUB
   rd% = tok.val%(i%) : i% = i% + 1
@@ -2736,7 +2739,6 @@ SUB encoder.doBitfield(op%, fl%, cc%, sz%, isUbfx%)
   IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
   IF i% >= tok.count% OR tok.type%(i%) <> TT_IMM THEN showError "BFX: expected #width" : EXIT SUB
   width% = tok.val%(i%)
-  LOCAL widthm1%, imm3%, imm2%
   widthm1% = width% - 1
   imm3% = (lsb% >> 2) AND 7 : imm2% = lsb% AND 3
   IF isUbfx% THEN
@@ -2844,6 +2846,7 @@ END SUB
 ' Returns -1 on unknown name.
 FUNCTION encoder.parseSysReg%(name$, mask%)
   LOCAL n$ LENGTH 16
+  LOCAL u%, base$, suf$
   n$ = UCASE$(name$)
   mask% = 2
   SELECT CASE n$
@@ -2862,7 +2865,6 @@ FUNCTION encoder.parseSysReg%(name$, mask%)
     CASE "FAULTMASK"   : encoder.parseSysReg% = &H13 : EXIT FUNCTION
     CASE "CONTROL"     : encoder.parseSysReg% = &H14 : EXIT FUNCTION
   END SELECT
-  LOCAL u%, base$, suf$
   u% = INSTR(n$, "_")
   IF u% > 0 THEN
     base$ = LEFT$(n$, u% - 1)

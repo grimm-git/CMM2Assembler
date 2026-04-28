@@ -290,6 +290,7 @@ END FUNCTION
 SUB dis.scan()
     LOCAL i% = 0, addr%, hw0%, hw1%, target%, op5%, imm5%, ib%, imm%
     LOCAL endAddr%
+    LOCAL ib2%, im3%, im8%, imm12%
 
     dis.lblCount%  = 0
     dis.poolCount% = 0
@@ -320,7 +321,6 @@ SUB dis.scan()
                 END IF
                 ' ADR.W: hw0 pattern (ADDW/SUBW with Rn=1111), 12-bit imm in hw1/hw0
                 IF (hw0% AND &HFBFF) = &HF20F OR (hw0% AND &HFBFF) = &HF2AF THEN
-                    LOCAL ib2%, im3%, im8%, imm12%
                     ib2%  = (hw0% >> 10) AND 1
                     im3%  = (hw1% >> 12) AND 7
                     im8%  = hw1% AND &HFF
@@ -630,6 +630,8 @@ FUNCTION dis.decMisc$(hw%, addr%)
     LOCAL itm%
     LOCAL its$ LENGTH 8
     LOCAL rm%
+    LOCAL nLet%, cc0%
+    LOCAL aif$ LENGTH 4, fl%
 
     ' ADD/SUB SP,SP,#imm7*4  : bits[15:8] = 10110000
     IF (hw% AND &HFF00) = &HB000 THEN
@@ -683,7 +685,7 @@ FUNCTION dis.decMisc$(hw%, addr%)
     IF (hw% AND &HFF00) = &HBF00 THEN
         cc4%  = (hw% >> 4) AND &HF
         itm%  = hw% AND &HF
-        LOCAL nLet%, cc0% = cc4% AND 1
+        cc0%  = cc4% AND 1
         IF (itm% AND 1) <> 0 THEN
             nLet% = 3
         ELSEIF (itm% AND 2) <> 0 THEN
@@ -746,7 +748,6 @@ FUNCTION dis.decMisc$(hw%, addr%)
     ' CPSIE/CPSID : bits[15:5]=10110110011, bit4=imod (0=enable, 1=disable),
     ' bits[3:0]=AIF flags
     IF (hw% AND &HFFE0) = &HB660 THEN
-        LOCAL aif$ LENGTH 4, fl%
         aif$ = ""
         fl% = hw% AND 7
         IF (fl% AND 4) <> 0 THEN aif$ = aif$ + "A"
@@ -1300,6 +1301,7 @@ FUNCTION dis.decLdm32$(hw0%, hw1%)
     LOCAL bang$ LENGTH 1
     LOCAL sign$ LENGTH 1
     LOCAL body$
+    LOCAL strdRd%, stbRd%
 
     ' TBB/TBH: hw0 = 0xE8Dx, hw1[15:5]=11110000000, bit4=H
     IF (hw0% AND &HFFF0) = &HE8D0 AND (hw1% AND &HFFE0) = &HF000 THEN
@@ -1370,7 +1372,6 @@ FUNCTION dis.decLdm32$(hw0%, hw1%)
 
     ' STREX  : hw0 = E840|Rn,  hw1 = Rt Rd imm8
     IF (hw0% AND &HFFF0) = &HE840 THEN
-        LOCAL strdRd%
         rt%     = (hw1% >> 12) AND &HF
         strdRd% = (hw1% >> 8)  AND &HF
         imm%    = (hw1% AND &HFF) * 4
@@ -1395,7 +1396,6 @@ FUNCTION dis.decLdm32$(hw0%, hw1%)
 
     ' STREXB / STREXH  : hw0 = E8C0|Rn,  hw1 = Rt 1111 010H Rd
     IF (hw0% AND &HFFF0) = &HE8C0 AND (hw1% AND &H0FE0) = &H0F40 THEN
-        LOCAL stbRd%
         rt%    = (hw1% >> 12) AND &HF
         stbRd% = hw1% AND &HF
         IF (hw1% AND &H10) <> 0 THEN
@@ -1419,6 +1419,16 @@ FUNCTION dis.dec32$(hw0%, hw1%, addr%)
     LOCAL imm4%, imm3%, imm8%, ib%, imm16%
     LOCAL rt%, rn2%, off%
     LOCAL mask%
+    LOCAL satIs16%, satImm3%, satImm2%, satRd%, satRn%, satShN%, satSatI%
+    LOCAL satSh5%, satIsU%
+    LOCAL satMne$ LENGTH 6
+    LOCAL extOp%, extRn%, extRd%, extRm%, extRot%
+    LOCAL extMne$ LENGTH 8
+    LOCAL pkRn%, pkRd%, pkRm%, pkImm3%, pkImm2%, pkTb%, pkShN%
+    LOCAL siKind%, siPre%, siRn%, siRd%, siRm%
+    LOCAL qMne$ LENGTH 8
+    LOCAL miscMne$ LENGTH 8
+    LOCAL siBase$ LENGTH 4, siPfx$ LENGTH 2, siSfx$ LENGTH 2
 
     ' BL (T1): hw0=11110 S imm10, hw1=11 J1 1 J2 imm11  (hw1 bit12=1)
     IF (hw0% AND &HF800) = &HF000 AND (hw1% AND &HD000) = &HD000 THEN
@@ -1594,8 +1604,6 @@ FUNCTION dis.dec32$(hw0%, hw1%, addr%)
     ' USAT / USAT16  : hw0[15:5]=11110011 10x, bit4=0
     ' Guard hw1[15]=0: branch/misc-control space sets hw1[15]=1 and must not match here.
     IF ((hw0% AND &HFFC0) = &HF300 OR (hw0% AND &HFFC0) = &HF380) AND (hw1% AND &H8000) = 0 THEN
-        LOCAL satIs16%, satImm3%, satImm2%, satRd%, satRn%, satShN%, satSatI%
-        LOCAL satSh5%, satIsU%
         satRn%   = hw0% AND &HF
         satRd%   = (hw1% >> 8) AND &HF
         satImm3% = (hw1% >> 12) AND 7
@@ -1616,7 +1624,6 @@ FUNCTION dis.dec32$(hw0%, hw1%, addr%)
             END IF
         ELSE
             ' SSAT stores sat-1 in bits[4:0]; USAT stores sat directly.
-            LOCAL satMne$ LENGTH 6
             IF satIsU% THEN
                 satSatI% = hw1% AND &H1F
                 satMne$ = "USAT"
@@ -1640,14 +1647,12 @@ FUNCTION dis.dec32$(hw0%, hw1%, addr%)
     ' Pattern: hw0[15:7]=1111_1010_0, hw0[7:4]=op (0..5), hw0[3:0]=Rn (1111 = no accum)
     ' hw1[15:12]=1111, hw1[11:8]=Rd, hw1[7:6]=10, hw1[5:4]=rotate, hw1[3:0]=Rm
     IF (hw0% AND &HFF80) = &HFA00 AND (hw1% AND &HF0C0) = &HF080 THEN
-        LOCAL extOp%, extRn%, extRd%, extRm%, extRot%
         extOp%  = (hw0% >> 4) AND 7
         IF extOp% <= 5 THEN
             extRn%  = hw0% AND &HF
             extRd%  = (hw1% >> 8) AND &HF
             extRm%  = hw1% AND &HF
             extRot% = ((hw1% >> 4) AND 3) * 8
-            LOCAL extMne$ LENGTH 8
             IF extRn% = 15 THEN
                 SELECT CASE extOp%
                 CASE 0 : extMne$ = "SXTH.W"
@@ -1676,7 +1681,6 @@ FUNCTION dis.dec32$(hw0%, hw1%, addr%)
 
     ' PKHBT / PKHTB  : hw0 AND &HFFF0 = &HEAC0,  hw1[5]=tb (0=BT/LSL, 1=TB/ASR)
     IF (hw0% AND &HFFF0) = &HEAC0 AND (hw1% AND &H8000) = 0 THEN
-        LOCAL pkRn%, pkRd%, pkRm%, pkImm3%, pkImm2%, pkTb%, pkShN%
         pkRn%   = hw0% AND &HF
         pkRd%   = (hw1% >> 8) AND &HF
         pkImm3% = (hw1% >> 12) AND 7
@@ -1700,7 +1704,6 @@ FUNCTION dis.dec32$(hw0%, hw1%, addr%)
     ' Parallel SIMD: hw1[7]=0, prefix in hw1[6:4], op-kind in hw0[7:4].
     ' Misc reg-ops:  hw1[7]=1, hw1[6:4] selects within group.
     IF (hw0% AND &HFF80) = &HFA80 AND (hw1% AND &HF000) = &HF000 THEN
-        LOCAL siKind%, siPre%, siRn%, siRd%, siRm%
         siKind% = (hw0% >> 4) AND &HF
         siRn%   = hw0% AND &HF
         siRd%   = (hw1% >> 8) AND &HF
@@ -1714,7 +1717,6 @@ FUNCTION dis.dec32$(hw0%, hw1%, addr%)
         ' QADD/QDADD/QSUB/QDSUB  : hw0[7:4]=1000, hw1[7:4] in {1000,1001,1010,1011}
         ' Operand order is Rd, Rm, Rn (Rn from hw0, Rm from hw1[3:0]).
         IF siKind% = 8 AND (siPre% AND &HC) = 8 THEN
-            LOCAL qMne$ LENGTH 8
             SELECT CASE siPre% AND 3
             CASE 0 : qMne$ = "QADD"
             CASE 1 : qMne$ = "QDADD"
@@ -1731,7 +1733,6 @@ FUNCTION dis.dec32$(hw0%, hw1%, addr%)
         END IF
         ' REV.W/REV16.W/RBIT/REVSH.W : hw0[7:4]=1001, hw1[7:4] in {1000,1001,1010,1011}
         IF siKind% = 9 AND (siPre% AND &HC) = 8 THEN
-            LOCAL miscMne$ LENGTH 8
             SELECT CASE siPre% AND 3
             CASE 0 : miscMne$ = "REV.W"
             CASE 1 : miscMne$ = "REV16.W"
@@ -1743,7 +1744,6 @@ FUNCTION dis.dec32$(hw0%, hw1%, addr%)
         END IF
         ' Parallel ADD/SUB/SAX/ASX : hw1[7]=0, prefix index = hw1[6:4]
         IF (siPre% AND 8) = 0 THEN
-            LOCAL siBase$ LENGTH 4, siPfx$ LENGTH 2, siSfx$ LENGTH 2
             SELECT CASE siKind%
             CASE &H8 : siBase$ = "ADD"  : siSfx$ = "8"
             CASE &H9 : siBase$ = "ADD"  : siSfx$ = "16"

@@ -185,6 +185,8 @@ SUB tokenizeLine(src$)
   LOCAL sfx$     LENGTH 8             ' suffix after mnemonic match (e.g. "SGE", "TTEEQ")
   LOCAL maskStr$ LENGTH 4    ' IT T/E mask chars (e.g. "TTE")
   LOCAL c$       LENGTH 1    ' single-character scratch
+  LOCAL eff$     LENGTH 2    ' CPS effect suffix
+  LOCAL base$    LENGTH 8    ' mnemonic base for 1-char flag check
 
   tok.count% = 0
   lexer.init(src$)
@@ -283,7 +285,6 @@ SUB tokenizeLine(src$)
 
   ' CPS effect suffix: CPSIE / CPSID -- emit "IE"/"ID" as TT_ADDR for the encoder.
   IF LEFT$(uWord$, mlen%) = "CPS" AND LEN(sfx$) >= 2 THEN
-    LOCAL eff$ LENGTH 2
     eff$ = LEFT$(sfx$, 2)
     IF eff$ = "IE" OR eff$ = "ID" THEN
       tokenizer.emitTok(TT_ADDR, 0, eff$)
@@ -316,7 +317,6 @@ SUB tokenizeLine(src$)
   '   R rounding flag on SMMUL / SMMLA / SMMLS
   '   X swap flag on dual multiplies SMUAD / SMUSD / SMLAD / SMLSD / SMLALD / SMLSLD
   IF LEN(sfx$) = 1 THEN
-    LOCAL base$ LENGTH 8
     base$ = LEFT$(uWord$, mlen%)
     IF sfx$ = "R" AND (base$ = "SMMUL" OR base$ = "SMMLA" OR base$ = "SMMLS") THEN
       fl% = FLAG_R

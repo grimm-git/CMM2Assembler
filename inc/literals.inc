@@ -52,6 +52,8 @@ SUB flushLit(force%)
   LOCAL i%, litBase%, litByteBase%, pcAddr%, offset%, imm8%, brOff%
   LOCAL prevHw%, needBranch%
   LOCAL ldrOff%, litOff%, pcBase%, litAddr%
+  LOCAL brTarget%, brOffset%, brImm%
+  LOCAL placeholder%
 
   IF lit.count% = 0 THEN EXIT SUB
   IF NOT force% AND NOT needsFlushLit%() THEN EXIT SUB
@@ -87,7 +89,6 @@ SUB flushLit(force%)
 
   ' Patch the branch past the pool
   IF needBranch% THEN
-    LOCAL brTarget%, brOffset%, brImm%
     brTarget%  = io.base% + io.ptr% * 2
     brOffset%  = (brTarget% - (io.base% + brOff% * 2 + 4)) / 2
     IF brOffset% < -1024 OR brOffset% > 1023 THEN
@@ -109,7 +110,6 @@ SUB flushLit(force%)
     litAddr% = io.base% + litOff% * 2
 
     offset%  = litAddr% - pcBase%
-    LOCAL placeholder%
     placeholder% = io.buffer%(ldrOff%)
     IF (placeholder% AND &HF800) = &HF800 THEN
       ' 32-bit T2 literal: imm12 byte offset in hw1 low 12 bits, U=1 already set
