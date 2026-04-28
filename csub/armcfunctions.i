@@ -45,6 +45,35 @@
     .equ varcnt,            0x08000304   // unsigned int varcnt                        (data slot)
     .equ DrawBuffer,        0x08000308   // void DrawBuffer(int x1,int y1,int x2,int y2,char *buf)
     .equ ReadBuffer,        0x0800030C   // void ReadBuffer(int x1,int y1,int x2,int y2,char *buf)
+    .equ FloatToStr,        0x08000310   // void FloatToStr(char *s, MMFLOAT f, int m, int n, char ch)
+    .equ ExecuteProgram,    0x08000314   // void ExecuteProgram(char *fname)  (a.k.a. RunBasicSub)
+    .equ CFuncmSec,         0x08000318   // unsigned int CFuncmSec                     (data slot)
+    .equ CFuncRam,          0x0800031C   // int *CFuncRam (StartOfCFuncRam)            (data slot)
+    .equ ScrollLCD,         0x08000320   // void ScrollLCD(int lines, int blank)
+    .equ ScrollBufferV,     0x08000324   // void ScrollBufferV(int lines, int blank)
+    .equ ScrollBufferH,     0x08000328   // void ScrollBufferH(int pixels)
+    .equ DrawBufferFast,    0x0800032C   // void DrawBufferFast(int x1,int y1,int x2,int y2,char *p)
+    .equ ReadBufferFast,    0x08000330   // void ReadBufferFast(int x1,int y1,int x2,int y2,char *p)
+    .equ MoveBuffer,        0x08000334   // void MoveBuffer(int x1,int y1,int x2,int y2,int w,int h,int flip)
+    .equ DrawPixel,         0x08000338   // void DrawPixel(int x, int y, int c)
+    .equ RoutineChecks,     0x0800033C   // void routinechecks(void)
+    .equ GetPageAddress,    0x08000340   // uint32_t GetPageAddress(int page)
+    .equ mycopysafe,        0x08000344   // void mycopysafe(void *out, const void *in, int n)
+    .equ IntToFloat,        0x08000348   // MMFLOAT IntToFloat(long long a)
+    .equ FloatToInt,        0x0800034C   // long long FloatToInt64(MMFLOAT x)
+    .equ Option,            0x08000350   // struct option_s *Option                    (data slot)
+    .equ ReadPageAddress,   0x08000354   // unsigned int ReadPageAddress               (data slot)
+    .equ WritePageAddress,  0x08000358   // unsigned int WritePageAddress              (data slot)
+    .equ Timer,             0x0800035C   // uint64_t timer(void)
+    .equ CFuncInt1,         0x08000360   // unsigned int CFuncInt1                     (data slot)
+    .equ CFuncInt2,         0x08000364   // unsigned int CFuncInt2                     (data slot)
+    .equ FastTimer,         0x08000368   // uint64_t fasttimer(void)
+    .equ TicksPerUsec,      0x0800036C   // unsigned int ticks_per_microsecond         (data slot)
+    .equ Map,               0x08000370   // int map(int cl)
+    .equ Sine,              0x08000374   // MMFLOAT sin(MMFLOAT)
+    .equ VideoColour,       0x08000378   // int VideoColour                            (data slot)
+    .equ DrawCircle,        0x0800037C   // void DrawCircle(int x,int y,int r,int w,int c,int fill,MMFLOAT aspect)
+    .equ DrawTriangle,      0x08000380   // void DrawTriangle(int x0,int y0,int x1,int y1,int x2,int y2,int c,int fill)
 
 // ---------------------------------------------------------------------------
 // Variable-table types  (T_*  – field 'type' in struct s_vartbl, often ORed)
@@ -119,6 +148,7 @@
     .equ EXT_DIG_OUT,         8    // digital output
     .equ EXT_OC_OUT,          9    // digital output, open-collector
     .equ EXT_INT_BOTH,       10    // interrupt on BOTH edges
-    .equ EXT_RESERVED,      100    // reserved – SETPIN/PIN cannot use
-    .equ EXT_BOOT_RESERVED, 101    // reserved at boot
+    .equ EXT_COM_RESERVED,       100    // reserved – SETPIN/PIN cannot use
+    .equ EXT_BOOT_RESERVED,      101    // reserved at boot
+    .equ EXT_DS18B20_RESERVED,   102    // reserved for DS18B20
 
