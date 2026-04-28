@@ -12,6 +12,7 @@ This suite contains some basic programs arround ARM assembler
 
 ## as.bas [-lsIf \<csub|bin\> -o \<output file\>] \<input file\>
 An assembler that understands Thumb and Thumb-2 assembler code. The output is binary code
+or a CSUB.
 
     -f = output format, either 'bin' or 'csub', default is csub
     -l = print table of labels after assembly
@@ -24,7 +25,7 @@ An assembler that understands Thumb and Thumb-2 assembler code. The output is bi
 With the option -l the assembler will print the labels table to the screen Option -s does
 the same for symbols found in the code. With -I you can define the include directory from
 which all include files (see .include directive) will be read. If the output file is not
-defined, the input file with the extemsion ".bin" is used.
+defined, the input file name with the extemsion matching the output format is used.
 
     on MMB4L: >run "as.bas", "-lso test.bin test.s"
     on CMM2:  >run "as.bas", -lso test.bin test.s
