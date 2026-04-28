@@ -25,7 +25,7 @@ or a CSUB.
 With the option -l the assembler will print the labels table to the screen Option -s does
 the same for symbols found in the code. With -I you can define the include directory from
 which all include files (see .include directive) will be read. If the output file is not
-defined, the input file name with the extemsion matching the output format is used.
+defined, the input file name with the extension matching the output format is used.
 
     on MMB4L: >run "as.bas", "-lso test.bin test.s"
     on CMM2:  >run "as.bas", -lso test.bin test.s
