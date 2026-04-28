@@ -13,11 +13,12 @@ This suite contains some basic programs arround ARM assmebler
 ## as.bas [-lsIf <csub|bin> -o <output file>] <input file>
 An assembler that understands Thumb and Thumb-2 assembler code. The output is binary code
 
-   -f = output format, either 'bin' or 'csub', default is csub
-   -l = print table of labels after assembly
-   -s = print table of symbols after assembly
-   -I = prefix for all files from the .include directive
-   -o = output file or <input>.bin if missing
+    -f = output format, either 'bin' or 'csub', default is csub
+    -l = print table of labels after assembly
+    -s = print table of symbols after assembly
+    -I = prefix for all files from the .include directive
+    -o = output file or <input>.bin if missing
+    
     <input> is mandatory. if the extension is missing '.s' will be attached.
     
 With the option -l the assembler will print the labels table to the screen Option -s does
@@ -25,8 +26,8 @@ the same for symbols found in the code. With -I you can define the include direc
 which all include files (see .include directive) will be read. If the output file is not
 defined, the input file with the extemsion ".bin" is used.
 
-on MMB4L: >run "as.bas", "-lso test.bin test.s"
-on CMM2:  >run "as.bas", -lso test.bin test.s
+    on MMB4L: >run "as.bas", "-lso test.bin test.s"
+    on CMM2:  >run "as.bas", -lso test.bin test.s
 
 The assembler is a 1.5 pass assembler. In fact it uses only one pass but does some tricks
 to do some forward reference scanning. This method comes to a limit when the distance of
@@ -41,11 +42,12 @@ to the screen or save it into a file
     -c = output assembler code that as.bas can understand
     -d = dump memory and disassemble it
     -o = write disassembly to file; if omitted output goes to screen
-         <input file> is mandatory. file extension defines file type. Following types are supported:
-            .bin  = binary as created by as.bas
-            .csub = CSUB module
-            .bas  = CSUB module embedded in a Basic file
-            .elf  = compiled code in ELF file format, eg. created by gcc
+  
+    <input file> is mandatory. file extension defines file type. Following types are supported:
+         .bin  = binary as created by as.bas
+         .csub = CSUB module
+         .bas  = CSUB module embedded in a Basic file
+         .elf  = compiled code in ELF file format, eg. created by gcc
 
 ## bin2csub.bas [-o <output file>] <input file>
 Convertes a binary file, created by the assembler, into a CSUB module that can be used
@@ -62,7 +64,8 @@ created just for the symetry :-)
     -p = preserve the CSUB name as file name
     -P = preserve the complete signature as file name: NAME_TYPE_TYPE_..bin
     -o = output file or <input>.bin if missing, overwritten by -p and -P
-     <input> is mandatory. If the extension is missing ".bas" will be attached.
+    
+    <input> is mandatory. If the extension is missing ".bas" will be attached.
 
 Usually a CSUB has a name and sometimes it is defined with a signature of requested data
 types. The binary file cannot preserve this information therefore the flags -p and -P are there.
@@ -82,6 +85,7 @@ for each module in the ELF file. This mimics the behaviour of the tool armcfV143
     -j = each C-function will be saved as separate CSUB file.
          (Default is to save all C-functions as one CSUB file)
     -o = output file or <input>.csub if missing
+
     If -o is omited, the output files will get the function name as filename
     <input> is mandatory. if the extension is missing '.bin' will be attached.
 
