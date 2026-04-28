@@ -35,7 +35,7 @@ a forward reference would require to change from 16-bit to 32-bit command. A two
 assembler would just replace the command, this one can't and reports an error. In these
 cases you have to add .W manually.
 
-## dis.bas [-[c|d]o <output file>] <input file>
+## dis.bas [-[c|d]o \<output file\>] \<input file\>
 An disassembler, which decodes an ARM assembler file and prints the assembler mnemonics
 to the screen or save it into a file
 
@@ -49,7 +49,7 @@ to the screen or save it into a file
          .bas  = CSUB module embedded in a Basic file
          .elf  = compiled code in ELF file format, eg. created by gcc
 
-## bin2csub.bas [-o <output file>] <input file>
+## bin2csub.bas [-o \<output file\>] \<input file\>
 Convertes a binary file, created by the assembler, into a CSUB module that can be used
 in Basic programs
 
@@ -57,7 +57,7 @@ in Basic programs
     If -o is omited, it will be tried to extract the CSUB signature from the filename
     <input> is mandatory. if the extension is missing '.bin' will be attached.
 
-## csub2bin.bas [-pPo <output file>] <input file>
+## csub2bin.bas [-pPo \<output file\>] \<input file\>
 Convertes a CSUB module, extracted from a Basic source file, into a binary file. This was
 created just for the symetry :-)
 
@@ -76,7 +76,7 @@ E.g: CSUB fixBytes STRING,INTEGER,INTEGER
 -> the output name will be: "fixbytes_STRING_INTEGER_INTEGER.bin"
 
 
-## elf2csub.bas [-jo <output file>] <input file>
+## elf2csub.bas [-jo \<output file\>] \<input file\>
 This little tool reads compiled code (assembler or C) from an ELF binary and converts
 it into a CSUB Module. The default behaviour is to create one CSUB Module from all
 modules in the ELF file. If you set the -j flag, a seperate CSUB Module wil be created
