@@ -8,7 +8,7 @@ it was a challenge, a killer and alone the feeling to have it mastered was
 worth all the pain and trears. And, to be honest, I had a little help from my
 new assistent Claude.
 
-This suite contains some basic programs arround ARM assmebler
+This suite contains some basic programs arround ARM assembler
 
 ## as.bas [-lsIf \<csub|bin\> -o \<output file\>] \<input file\>
 An assembler that understands Thumb and Thumb-2 assembler code. The output is binary code
