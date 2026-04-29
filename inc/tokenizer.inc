@@ -15,6 +15,18 @@ DIM tok.val%(MAX_TOKENS)
 DIM tok.str$(MAX_TOKENS) LENGTH MAX_NAME_LEN
 DIM tok.count% = 0
 
+' Read tok.val% at i%, advance i%, and skip a following comma if present.
+' Bounds-checked so that calls past the last operand are no-ops on the comma.
+SUB tok.takeC(i%, r%)
+  r% = tok.val%(i%) : INC i%
+  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
+END SUB
+
+' Skip an optional comma at i%.
+SUB tok.eatComma(i%)
+  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
+END SUB
+
 ' Map a register name (already upper-cased) to 0..15, or -1 if not a register.
 FUNCTION tokenizer.parseRegName%(name$)
   LOCAL i%, n%
