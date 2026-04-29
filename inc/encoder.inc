@@ -320,9 +320,9 @@ SUB encode()
 
   DO WHILE op% < tok.count%
     SELECT CASE tok.type%(op%)
-      CASE TT_FLAG : fl% = tok.val%(op%) : op% = op% + 1
-      CASE TT_COND : cc% = tok.val%(op%) : op% = op% + 1
-      CASE TT_SIZE : sz% = tok.val%(op%) : op% = op% + 1
+      CASE TT_FLAG : fl% = tok.val%(op%) : INC op%
+      CASE TT_COND : cc% = tok.val%(op%) : INC op%
+      CASE TT_SIZE : sz% = tok.val%(op%) : INC op%
       CASE ELSE    : EXIT DO
     END SELECT
   LOOP
@@ -552,12 +552,12 @@ SUB encoder.doMov(op%, fl%, cc%, sz%)
   IF tok.type%(i%) <> TT_REGLO AND tok.type%(i%) <> TT_REGHI THEN
     showError "MOV: expected destination register" : EXIT SUB
   END IF
-  rd% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rd% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   IF i% >= tok.count% THEN showError "MOV: missing source" : EXIT SUB
 
   IF tok.type%(i%) = TT_IMM THEN
-    imm% = tok.val%(i%) AND &HFFFFFFFF : i% = i% + 1
+    imm% = tok.val%(i%) AND &HFFFFFFFF : INC i%
     ' MOVS Rd, #imm8  T1 16-bit: 001 00 Rd imm8 (Rd must be R0-R7, imm 0-255, always sets S)
     IF S% AND rd% <= 7 AND imm% <= 255 AND sz% <> SIZE_W THEN
       emit16(&H2000 OR (rd% << 8) OR imm%)
@@ -569,14 +569,14 @@ SUB encoder.doMov(op%, fl%, cc%, sz%)
     END IF
 
   ELSEIF (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) AND sz% <> SIZE_W THEN
-    rm% = tok.val%(i%) : i% = i% + 1
+    rm% = tok.val%(i%) : INC i%
     ' Check for shift after register
-    IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+    IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
     IF i% < tok.count% AND tok.type%(i%) = TT_SHIFT THEN
       ' MOV.W Rd, Rm, <shift> #n  (32-bit)
-      sh% = tok.val%(i%) : i% = i% + 1
+      sh% = tok.val%(i%) : INC i%
       shimm% = 0
-      IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN shimm% = tok.val%(i%) : i% = i% + 1
+      IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN shimm% = tok.val%(i%) : INC i%
       IF sh% = SHIFT_RRX THEN
         ' RRX T1: 1110 1010 0100 1111 | 0000 Rd 0011 Rm
         emit32(&HEA4F, ((rd% AND &HF) << 8) OR &H30 OR (rm% AND &HF))
@@ -605,12 +605,12 @@ SUB encoder.doMov(op%, fl%, cc%, sz%)
     IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN
       showError "MOV: bad operand" : EXIT SUB
     END IF
-    rm% = tok.val%(i%) : i% = i% + 1
+    rm% = tok.val%(i%) : INC i%
     sh2% = SHIFT_NONE : shimm2% = 0
-    IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+    IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
     IF i% < tok.count% AND tok.type%(i%) = TT_SHIFT THEN
-      sh2% = tok.val%(i%) : i% = i% + 1
-      IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN shimm2% = tok.val%(i%) : i% = i% + 1
+      sh2% = tok.val%(i%) : INC i%
+      IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN shimm2% = tok.val%(i%) : INC i%
     END IF
     encoder.emit32RegDp(&H02, S%, &HF, rd%, rm%, sh2%, shimm2%)
   END IF
@@ -618,20 +618,21 @@ END SUB
 
 ' MOVW: 16-bit zero-extended immediate  T3
 SUB encoder.doMovw(op%, fl%, cc%, sz%)
-  LOCAL i%, rd%, imm%
-  LOCAL i4%, imm4%, im3%, im8%
-  i% = op%
-  IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "MOVW: expected register" : EXIT SUB
-  rd% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
-  IF tok.type%(i%) <> TT_IMM THEN showError "MOVW: expected immediate" : EXIT SUB
-  imm% = tok.val%(i%) AND &HFFFF
-  ' MOVW T3: 11110 i 10 0100 imm4 | 0 imm3 Rd imm8
-  i4%   = (imm% >> 11) AND 1
-  imm4% = (imm% >> 12) AND &HF
-  im3%  = (imm% >> 8)  AND 7
-  im8%  = imm% AND &HFF
-  emit32(&HF240 OR (i4% << 10) OR imm4%, (im3% << 12) OR ((rd% AND &HF) << 8) OR im8%)
+    LOCAL i%, rd%, imm%
+    LOCAL i4%, imm4%, im3%, im8%
+
+    i% = op%
+    IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "MOVW: expected register" : EXIT SUB
+    rd% = tok.val%(i%) : INC i%
+    IF tok.type%(i%) = TT_COMMA THEN INC i%
+    IF tok.type%(i%) <> TT_IMM THEN showError "MOVW: expected immediate" : EXIT SUB
+    imm% = tok.val%(i%) AND &HFFFF
+    ' MOVW T3: 11110 i 10 0100 imm4 | 0 imm3 Rd imm8
+    i4%   = (imm% >> 11) AND 1
+    imm4% = (imm% >> 12) AND &HF
+    im3%  = (imm% >> 8)  AND 7
+    im8%  = imm% AND &HFF
+    emit32(&HF240 OR (i4% << 10) OR imm4%, (im3% << 12) OR ((rd% AND &HF) << 8) OR im8%)
 END SUB
 
 ' MOVT: top halfword  T1
@@ -640,8 +641,8 @@ SUB encoder.doMovt(op%, fl%, cc%, sz%)
   LOCAL i4%, imm4%, im3%, im8%
   i% = op%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "MOVT: expected register" : EXIT SUB
-  rd% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rd% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   IF tok.type%(i%) <> TT_IMM THEN showError "MOVT: expected immediate" : EXIT SUB
   imm% = tok.val%(i%) AND &HFFFF
   i4%   = (imm% >> 11) AND 1
@@ -657,18 +658,18 @@ SUB encoder.doMvn(op%, fl%, cc%, sz%)
   S% = (fl% = FLAG_S)
   i% = op%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "MVN: expected register" : EXIT SUB
-  rd% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rd% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   IF tok.type%(i%) = TT_IMM THEN
     imm% = tok.val%(i%)
     encoder.emit32ModImm(&H03, S%, &HF, rd%, imm%)   ' MVN = NOT-ORR with Rn=1111, op1=00011
   ELSEIF tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI THEN
-    rm% = tok.val%(i%) : i% = i% + 1
+    rm% = tok.val%(i%) : INC i%
     sh% = SHIFT_NONE : shimm% = 0
-    IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+    IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
     IF i% < tok.count% AND tok.type%(i%) = TT_SHIFT THEN
-      sh% = tok.val%(i%) : i% = i% + 1
-      IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN shimm% = tok.val%(i%) : i% = i% + 1
+      sh% = tok.val%(i%) : INC i%
+      IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN shimm% = tok.val%(i%) : INC i%
     END IF
     ' MVN T1 16-bit: 0100 0011 11 Rm Rd (rd,rm must be R0-R7, sets S, no shift)
     IF S% AND rd% <= 7 AND rm% <= 7 AND sh% = SHIFT_NONE AND sz% <> SIZE_W THEN
@@ -694,15 +695,15 @@ SUB encoder.doAdd(op%, fl%, cc%, sz%)
 
   ' Rd
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "ADD: expected Rd" : EXIT SUB
-  rd% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rd% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
 
   ' After Rd: Rn, Rm, Imm, or end-of-operands
   IF i% >= tok.count% THEN showError "ADD: missing operand" : EXIT SUB
 
   ' Check for 2-operand form: ADD Rd, <src>
   IF tok.type%(i%) = TT_IMM THEN
-    imm% = tok.val%(i%) AND &HFFFFFFFF : i% = i% + 1
+    imm% = tok.val%(i%) AND &HFFFFFFFF : INC i%
     ' Negative immediate: rewrite as SUB
     IF imm% > &H7FFFFFFF THEN
       ' Treat as negative → rewrite ADDS Rd,#-n as SUBS Rd,#n
@@ -743,7 +744,7 @@ SUB encoder.doAdd(op%, fl%, cc%, sz%)
 
   ' Second operand is a register: could be Rn (3-operand) or Rm (2-operand)
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "ADD: expected register" : EXIT SUB
-  rn% = tok.val%(i%) : i% = i% + 1
+  rn% = tok.val%(i%) : INC i%
 
   IF i% >= tok.count% OR tok.type%(i%) <> TT_COMMA THEN
     ' 2-operand: ADD Rd, Rn  →  treat as ADD Rd, Rd, Rn (hi-reg T2 or 32-bit)
@@ -763,7 +764,7 @@ SUB encoder.doAdd(op%, fl%, cc%, sz%)
   END IF
 
   ' 3-operand: ADD Rd, Rn, <op2>
-  i% = i% + 1  ' skip comma
+  INC i%  ' skip comma
 
   ' Rn=SP special cases
   IF rn% = 13 THEN   ' SP
@@ -792,13 +793,13 @@ SUB encoder.doAdd(op%, fl%, cc%, sz%)
       END IF
       EXIT SUB
     ELSEIF tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI THEN
-      rm% = tok.val%(i%) : i% = i% + 1
+      rm% = tok.val%(i%) : INC i%
       ' Read optional shift tokens
       sh% = SHIFT_NONE : shimm% = 0
-      IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+      IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
       IF i% < tok.count% AND tok.type%(i%) = TT_SHIFT THEN
-        sh% = tok.val%(i%) : i% = i% + 1
-        IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN shimm% = tok.val%(i%) : i% = i% + 1
+        sh% = tok.val%(i%) : INC i%
+        IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN shimm% = tok.val%(i%) : INC i%
       END IF
       ' ADD Rd, SP, Rm
       ' If Rd=Rm (and no S, no shift), use ADD T2 16-bit: ADD Rdn, SP (hi-reg form 0x4400)
@@ -834,7 +835,7 @@ SUB encoder.doAdd(op%, fl%, cc%, sz%)
 
   ' General 3-operand: Rd, Rn, Imm or Rd, Rn, Rm [,shift #n]
   IF tok.type%(i%) = TT_IMM THEN
-    imm% = tok.val%(i%) AND &HFFFFFFFF : i% = i% + 1
+    imm% = tok.val%(i%) AND &HFFFFFFFF : INC i%
     ' ADDS Rd, Rn, #imm3 T1 16-bit: all R0-R7, imm 0-7, always sets S
     IF S% AND rd% <= 7 AND rn% <= 7 AND imm% <= 7 AND sz% <> SIZE_W THEN
       emit16(&H1C00 OR (imm% << 6) OR (rn% << 3) OR rd%)
@@ -861,12 +862,12 @@ SUB encoder.doAdd(op%, fl%, cc%, sz%)
 
   ' Rd, Rn, Rm [, shift #n]
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "ADD: expected Rm" : EXIT SUB
-  rm% = tok.val%(i%) : i% = i% + 1
+  rm% = tok.val%(i%) : INC i%
   sh% = SHIFT_NONE : shimm% = 0
-  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
   IF i% < tok.count% AND tok.type%(i%) = TT_SHIFT THEN
-    sh% = tok.val%(i%) : i% = i% + 1
-    IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN shimm% = tok.val%(i%) : i% = i% + 1
+    sh% = tok.val%(i%) : INC i%
+    IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN shimm% = tok.val%(i%) : INC i%
   END IF
 
   ' ADDS Rd,Rn,Rm T1 16-bit: all R0-R7, no shift, sets S
@@ -889,13 +890,13 @@ SUB encoder.doSub(op%, fl%, cc%, sz%)
   i% = op%
 
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "SUB: expected Rd" : EXIT SUB
-  rd% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rd% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   IF i% >= tok.count% THEN showError "SUB: missing operand" : EXIT SUB
 
   ' 2-operand: SUB Rd, #imm or SUB Rd, Rm
   IF tok.type%(i%) = TT_IMM THEN
-    imm% = tok.val%(i%) AND &HFFFFFFFF : i% = i% + 1
+    imm% = tok.val%(i%) AND &HFFFFFFFF : INC i%
     ' SUB SP, #imm*4 T1 16-bit
     IF rd% = 13 AND NOT S% AND (imm% AND 3) = 0 AND imm% <= 508 AND sz% <> SIZE_W THEN
       emit16(&HB080 OR ((imm% / 4) AND &H7F))
@@ -921,7 +922,7 @@ SUB encoder.doSub(op%, fl%, cc%, sz%)
   END IF
 
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "SUB: expected register" : EXIT SUB
-  rn% = tok.val%(i%) : i% = i% + 1
+  rn% = tok.val%(i%) : INC i%
 
   IF i% >= tok.count% OR tok.type%(i%) <> TT_COMMA THEN
     ' 2-operand SUB Rd, Rm → treat as SUB Rd, Rd, Rm (32-bit only)
@@ -929,10 +930,10 @@ SUB encoder.doSub(op%, fl%, cc%, sz%)
     EXIT SUB
   END IF
 
-  i% = i% + 1  ' skip comma
+  INC i%  ' skip comma
 
   IF tok.type%(i%) = TT_IMM THEN
-    imm% = tok.val%(i%) AND &HFFFFFFFF : i% = i% + 1
+    imm% = tok.val%(i%) AND &HFFFFFFFF : INC i%
     ' SUB SP, SP, #imm7*4 T1 16-bit: Rd=Rn=SP, imm=multiple of 4, 0..508, no S
     IF NOT S% AND rd% = 13 AND rn% = 13 AND (imm% AND 3) = 0 AND imm% <= 508 AND sz% <> SIZE_W THEN
       emit16(&HB080 OR ((imm% / 4) AND &H7F))
@@ -962,12 +963,12 @@ SUB encoder.doSub(op%, fl%, cc%, sz%)
   END IF
 
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "SUB: expected Rm" : EXIT SUB
-  rm% = tok.val%(i%) : i% = i% + 1
+  rm% = tok.val%(i%) : INC i%
   sh% = SHIFT_NONE : shimm% = 0
-  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
   IF i% < tok.count% AND tok.type%(i%) = TT_SHIFT THEN
-    sh% = tok.val%(i%) : i% = i% + 1
-    IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN shimm% = tok.val%(i%) : i% = i% + 1
+    sh% = tok.val%(i%) : INC i%
+    IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN shimm% = tok.val%(i%) : INC i%
   END IF
 
   ' SUBS Rd,Rn,Rm T1 16-bit: all R0-R7, no shift
@@ -990,11 +991,11 @@ SUB encoder.doAdcSbc(op%, fl%, cc%, sz%, isSbc%)
   IF isSbc% THEN dp16% = &H4180 ELSE dp16% = &H4140
 
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "ADC/SBC: expected Rd" : EXIT SUB
-  rd% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rd% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
 
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "ADC/SBC: expected Rn" : EXIT SUB
-  rn% = tok.val%(i%) : i% = i% + 1
+  rn% = tok.val%(i%) : INC i%
 
   IF i% >= tok.count% OR tok.type%(i%) <> TT_COMMA THEN
     ' 2-operand: ADC Rdn, Rm  (Rd=Rn)
@@ -1007,7 +1008,7 @@ SUB encoder.doAdcSbc(op%, fl%, cc%, sz%, isSbc%)
     EXIT SUB
   END IF
 
-  i% = i% + 1  ' skip comma
+  INC i%  ' skip comma
   IF tok.type%(i%) = TT_IMM THEN
     imm% = tok.val%(i%)
     IF sz% = SIZE_N THEN showError "ADC/SBC: imm requires 32-bit" : EXIT SUB
@@ -1016,12 +1017,12 @@ SUB encoder.doAdcSbc(op%, fl%, cc%, sz%, isSbc%)
   END IF
 
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "ADC/SBC: expected Rm" : EXIT SUB
-  rm% = tok.val%(i%) : i% = i% + 1
+  rm% = tok.val%(i%) : INC i%
   sh% = SHIFT_NONE : shimm% = 0
-  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
   IF i% < tok.count% AND tok.type%(i%) = TT_SHIFT THEN
-    sh% = tok.val%(i%) : i% = i% + 1
-    IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN shimm% = tok.val%(i%) : i% = i% + 1
+    sh% = tok.val%(i%) : INC i%
+    IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN shimm% = tok.val%(i%) : INC i%
   END IF
   IF S% AND rd% = rn% AND rd% <= 7 AND rm% <= 7 AND sh% = SHIFT_NONE AND sz% <> SIZE_W THEN
     emit16(dp16% OR (rm% << 3) OR rd%)
@@ -1038,11 +1039,11 @@ SUB encoder.doRsb(op%, fl%, cc%, sz%)
   S% = (fl% = FLAG_S)
   i% = op%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "RSB: expected Rd" : EXIT SUB
-  rd% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rd% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "RSB: expected Rn" : EXIT SUB
-  rn% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rn% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   IF tok.type%(i%) = TT_IMM THEN
     imm% = tok.val%(i%)
     ' RSB T1 16-bit: 0100 0010 01 Rn Rd (negs — only #0 immediate)
@@ -1052,12 +1053,12 @@ SUB encoder.doRsb(op%, fl%, cc%, sz%)
       encoder.emit32ModImm(&H0E, S%, rn%, rd%, imm%)
     END IF
   ELSEIF tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI THEN
-    rm% = tok.val%(i%) : i% = i% + 1
+    rm% = tok.val%(i%) : INC i%
     sh% = SHIFT_NONE : shimm% = 0
-    IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+    IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
     IF i% < tok.count% AND tok.type%(i%) = TT_SHIFT THEN
-      sh% = tok.val%(i%) : i% = i% + 1
-      IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN shimm% = tok.val%(i%) : i% = i% + 1
+      sh% = tok.val%(i%) : INC i%
+      IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN shimm% = tok.val%(i%) : INC i%
     END IF
     encoder.emit32RegDp(&H0E, S%, rn%, rd%, rm%, sh%, shimm%)
   ELSE
@@ -1085,8 +1086,8 @@ SUB encoder.doBitwise(op%, fl%, cc%, sz%, subOp%)
   END SELECT
 
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "Bitwise: expected Rd" : EXIT SUB
-  rd% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rd% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
 
   ' After Rd: could be Rn then comma then op2, or direct imm (2-operand: Rdn, #imm)
   IF tok.type%(i%) = TT_IMM THEN
@@ -1097,7 +1098,7 @@ SUB encoder.doBitwise(op%, fl%, cc%, sz%, subOp%)
   END IF
 
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "Bitwise: expected register" : EXIT SUB
-  rn% = tok.val%(i%) : i% = i% + 1
+  rn% = tok.val%(i%) : INC i%
 
   IF i% >= tok.count% OR tok.type%(i%) <> TT_COMMA THEN
     ' 2-operand: Rd, Rn  →  Rd = Rd op Rn
@@ -1110,7 +1111,7 @@ SUB encoder.doBitwise(op%, fl%, cc%, sz%, subOp%)
     EXIT SUB
   END IF
 
-  i% = i% + 1  ' skip comma
+  INC i%  ' skip comma
 
   IF tok.type%(i%) = TT_IMM THEN
     imm% = tok.val%(i%)
@@ -1122,12 +1123,12 @@ SUB encoder.doBitwise(op%, fl%, cc%, sz%, subOp%)
   END IF
 
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "Bitwise: expected Rm" : EXIT SUB
-  rm% = tok.val%(i%) : i% = i% + 1
+  rm% = tok.val%(i%) : INC i%
   sh% = SHIFT_NONE : shimm% = 0
-  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
   IF i% < tok.count% AND tok.type%(i%) = TT_SHIFT THEN
-    sh% = tok.val%(i%) : i% = i% + 1
-    IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN shimm% = tok.val%(i%) : i% = i% + 1
+    sh% = tok.val%(i%) : INC i%
+    IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN shimm% = tok.val%(i%) : INC i%
   END IF
   ' 16-bit: 2-reg, rd=rn, lo regs, no shift, S set
   IF S% AND dp16% >= 0 AND rd% = rn% AND rd% <= 7 AND rm% <= 7 AND sh% = SHIFT_NONE AND sz% <> SIZE_W THEN
@@ -1145,14 +1146,14 @@ SUB encoder.doMul(op%, fl%, cc%, sz%)
   S% = (fl% = FLAG_S)
   i% = op%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "MUL: expected Rd" : EXIT SUB
-  rd% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rd% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "MUL: expected Rn" : EXIT SUB
-  rn% = tok.val%(i%) : i% = i% + 1
+  rn% = tok.val%(i%) : INC i%
   IF i% >= tok.count% OR tok.type%(i%) <> TT_COMMA THEN
     rm% = rn%  ' 2-operand: MUL Rdn, Rm
   ELSE
-    i% = i% + 1
+    INC i%
     IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "MUL: expected Rm" : EXIT SUB
     rm% = tok.val%(i%)
   END IF
@@ -1187,12 +1188,12 @@ SUB encoder.doShift(op%, fl%, cc%, sz%, shType%)
   END SELECT
 
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "Shift: expected Rd" : EXIT SUB
-  rd% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rd% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
 
   ' 2-operand shift-by-immediate: LSLS Rdn, #n  (no second register)
   IF tok.type%(i%) = TT_IMM THEN
-    imm% = tok.val%(i%) : i% = i% + 1
+    imm% = tok.val%(i%) : INC i%
     rm% = rd%
     ' Fall through to 3-operand immediate handling below via a goto-like jump...
     ' Actually inline it here:
@@ -1213,7 +1214,7 @@ SUB encoder.doShift(op%, fl%, cc%, sz%, shType%)
   END IF
 
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "Shift: expected Rm/Rdn" : EXIT SUB
-  rm% = tok.val%(i%) : i% = i% + 1
+  rm% = tok.val%(i%) : INC i%
 
   IF i% >= tok.count% OR tok.type%(i%) <> TT_COMMA THEN
     ' 2-operand shift-by-register: LSLS Rd, Rm  (Rd is also dest, same as Rd+=lsl Rm)
@@ -1236,7 +1237,7 @@ SUB encoder.doShift(op%, fl%, cc%, sz%, shType%)
 
   ' 3-operand: Rd, Rm, #imm  or  Rd, Rm, Rs
   ' Check if rd=rm (2-operand source) — the common case after parsing shows 3 tokens
-  i% = i% + 1  ' skip comma
+  INC i%  ' skip comma
   IF tok.type%(i%) = TT_IMM THEN
     imm% = tok.val%(i%)
     ' Shift-by-immediate
@@ -1280,8 +1281,8 @@ SUB encoder.doRrx(op%, fl%, cc%, sz%)
   S% = (fl% = FLAG_S)
   i% = op%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "RRX: expected Rd" : EXIT SUB
-  rd% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rd% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN rm% = rd% ELSE rm% = tok.val%(i%)
   ' RRX T1: 1110 1010 0100 1111 | 0000 Rd 0011 Rm
   emit32(&HEA4F OR (S% << 4), ((rd% AND &HF) << 8) OR &H30 OR (rm% AND &HF))
@@ -1294,8 +1295,8 @@ SUB encoder.doCmp(op%, fl%, cc%, sz%)
   LOCAL i%, rn%, rm%, imm%, sh%, shimm%
   i% = op%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "CMP: expected Rn" : EXIT SUB
-  rn% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rn% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   IF tok.type%(i%) = TT_IMM THEN
     imm% = tok.val%(i%)
     IF rn% <= 7 AND imm% <= 255 AND sz% <> SIZE_W THEN
@@ -1304,12 +1305,12 @@ SUB encoder.doCmp(op%, fl%, cc%, sz%)
       encoder.emit32ModImm(&H0D, 1, rn%, &HF, imm%)
     END IF
   ELSEIF tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI THEN
-    rm% = tok.val%(i%) : i% = i% + 1
+    rm% = tok.val%(i%) : INC i%
     sh% = SHIFT_NONE : shimm% = 0
-    IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+    IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
     IF i% < tok.count% AND tok.type%(i%) = TT_SHIFT THEN
-      sh% = tok.val%(i%) : i% = i% + 1
-      IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN shimm% = tok.val%(i%) : i% = i% + 1
+      sh% = tok.val%(i%) : INC i%
+      IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN shimm% = tok.val%(i%) : INC i%
     END IF
     IF rn% <= 7 AND rm% <= 7 AND sh% = SHIFT_NONE AND sz% <> SIZE_W THEN
       emit16(&H4280 OR (rm% << 3) OR rn%)  ' CMP T1
@@ -1327,18 +1328,18 @@ SUB encoder.doCmn(op%, fl%, cc%, sz%)
   LOCAL i%, rn%, rm%, imm%, sh%, shimm%
   i% = op%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "CMN: expected Rn" : EXIT SUB
-  rn% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rn% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   IF tok.type%(i%) = TT_IMM THEN
     imm% = tok.val%(i%)
     encoder.emit32ModImm(&H08, 1, rn%, &HF, imm%)
   ELSEIF tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI THEN
-    rm% = tok.val%(i%) : i% = i% + 1
+    rm% = tok.val%(i%) : INC i%
     sh% = SHIFT_NONE : shimm% = 0
-    IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+    IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
     IF i% < tok.count% AND tok.type%(i%) = TT_SHIFT THEN
-      sh% = tok.val%(i%) : i% = i% + 1
-      IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN shimm% = tok.val%(i%) : i% = i% + 1
+      sh% = tok.val%(i%) : INC i%
+      IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN shimm% = tok.val%(i%) : INC i%
     END IF
     IF rn% <= 7 AND rm% <= 7 AND sh% = SHIFT_NONE AND sz% <> SIZE_W THEN
       emit16(&H42C0 OR (rm% << 3) OR rn%)
@@ -1354,18 +1355,18 @@ SUB encoder.doTst(op%, fl%, cc%, sz%)
   LOCAL i%, rn%, rm%, imm%, sh%, shimm%
   i% = op%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "TST: expected Rn" : EXIT SUB
-  rn% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rn% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   IF tok.type%(i%) = TT_IMM THEN
     imm% = tok.val%(i%)
     encoder.emit32ModImm(&H00, 1, rn%, &HF, imm%)
   ELSEIF tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI THEN
-    rm% = tok.val%(i%) : i% = i% + 1
+    rm% = tok.val%(i%) : INC i%
     sh% = SHIFT_NONE : shimm% = 0
-    IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+    IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
     IF i% < tok.count% AND tok.type%(i%) = TT_SHIFT THEN
-      sh% = tok.val%(i%) : i% = i% + 1
-      IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN shimm% = tok.val%(i%) : i% = i% + 1
+      sh% = tok.val%(i%) : INC i%
+      IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN shimm% = tok.val%(i%) : INC i%
     END IF
     IF rn% <= 7 AND rm% <= 7 AND sh% = SHIFT_NONE AND sz% <> SIZE_W THEN
       emit16(&H4200 OR (rm% << 3) OR rn%)
@@ -1381,18 +1382,18 @@ SUB encoder.doTeq(op%, fl%, cc%, sz%)
   LOCAL i%, rn%, rm%, imm%, sh%, shimm%
   i% = op%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "TEQ: expected Rn" : EXIT SUB
-  rn% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rn% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   IF tok.type%(i%) = TT_IMM THEN
     imm% = tok.val%(i%)
     encoder.emit32ModImm(&H04, 1, rn%, &HF, imm%)
   ELSEIF tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI THEN
-    rm% = tok.val%(i%) : i% = i% + 1
+    rm% = tok.val%(i%) : INC i%
     sh% = SHIFT_NONE : shimm% = 0
-    IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+    IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
     IF i% < tok.count% AND tok.type%(i%) = TT_SHIFT THEN
-      sh% = tok.val%(i%) : i% = i% + 1
-      IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN shimm% = tok.val%(i%) : i% = i% + 1
+      sh% = tok.val%(i%) : INC i%
+      IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN shimm% = tok.val%(i%) : INC i%
     END IF
     encoder.emit32RegDp(&H04, 1, rn%, &HF, rm%, sh%, shimm%)
   ELSE
@@ -1431,8 +1432,8 @@ SUB encoder.doLdr(op%, fl%, cc%, sz%)
   LOCAL type2l%
   i% = op%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "LDR: expected Rt" : EXIT SUB
-  rt% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rt% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
 
   ' LDR Rt,=value  →  MOV.W / MOVW when possible, else literal pool
   IF tok.type%(i%) = TT_LIT THEN
@@ -1467,17 +1468,17 @@ SUB encoder.doLdr(op%, fl%, cc%, sz%)
 
   ' LDR Rt,[Rn,...]
   IF tok.type%(i%) <> TT_LBRA THEN showError "LDR: expected [ or =" : EXIT SUB
-  i% = i% + 1
+  INC i%
 
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "LDR: expected base register" : EXIT SUB
-  rn% = tok.val%(i%) : i% = i% + 1
+  rn% = tok.val%(i%) : INC i%
 
   IF tok.type%(i%) = TT_RBRA THEN
     ' LDR Rt,[Rn]  →  imm=0, but check for post-index `,#imm`
-    i% = i% + 1
+    INC i%
     IF i% + 1 < tok.count% AND tok.type%(i%) = TT_COMMA AND tok.type%(i% + 1) = TT_IMM THEN
-      i% = i% + 1
-      imm% = tok.val%(i%) : i% = i% + 1
+      INC i%
+      imm% = tok.val%(i%) : INC i%
       encoder.emitLdstT4(&HF8D0, rn%, rt%, imm%, 0, 1)
       EXIT SUB
     END IF
@@ -1500,15 +1501,15 @@ SUB encoder.doLdr(op%, fl%, cc%, sz%)
     EXIT SUB
   END IF
 
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
 
   IF tok.type%(i%) = TT_IMM OR tok.type%(i%) = TT_ADDR THEN
     IF tok.type%(i%) = TT_ADDR THEN imm% = lookupSym%(tok.str$(i%)) ELSE imm% = tok.val%(i%)
-    i% = i% + 1
+    INC i%
     preBang% = 0
     IF tok.type%(i%) = TT_RBRA THEN
-      i% = i% + 1
-      IF i% < tok.count% AND tok.type%(i%) = TT_BANG THEN preBang% = 1 : i% = i% + 1
+      INC i%
+      IF i% < tok.count% AND tok.type%(i%) = TT_BANG THEN preBang% = 1 : INC i%
     END IF
     ' Pre-index or negative offset → T4 8-bit imm
     IF preBang% THEN
@@ -1551,14 +1552,14 @@ SUB encoder.doLdr(op%, fl%, cc%, sz%)
   END IF
 
   IF tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI THEN
-    rm% = tok.val%(i%) : i% = i% + 1
+    rm% = tok.val%(i%) : INC i%
     sh% = SHIFT_NONE : shimm% = 0
-    IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+    IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
     IF i% < tok.count% AND tok.type%(i%) = TT_SHIFT THEN
-      sh% = tok.val%(i%) : i% = i% + 1
-      IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN shimm% = tok.val%(i%) : i% = i% + 1
+      sh% = tok.val%(i%) : INC i%
+      IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN shimm% = tok.val%(i%) : INC i%
     END IF
-    IF tok.type%(i%) = TT_RBRA THEN i% = i% + 1
+    IF tok.type%(i%) = TT_RBRA THEN INC i%
     IF rt% <= 7 AND rn% <= 7 AND rm% <= 7 AND sh% = SHIFT_NONE AND sz% <> SIZE_W THEN
       emit16(&H5800 OR (rm% << 6) OR (rn% << 3) OR rt%)
     ELSE
@@ -1589,20 +1590,20 @@ SUB encoder.doLdrx(op%, fl%, cc%, sz%, size%, signed%)
   END SELECT
 
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "LDRx: expected Rt" : EXIT SUB
-  rt% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rt% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   IF tok.type%(i%) <> TT_LBRA THEN showError "LDRx: expected [" : EXIT SUB
-  i% = i% + 1
+  INC i%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "LDRx: expected Rn" : EXIT SUB
-  rn% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rn% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
 
   IF tok.type%(i%) = TT_RBRA OR i% >= tok.count% THEN
-    IF tok.type%(i%) = TT_RBRA THEN i% = i% + 1
+    IF tok.type%(i%) = TT_RBRA THEN INC i%
     ' Post-index `[Rn],#imm`
     IF i% + 1 < tok.count% AND tok.type%(i%) = TT_COMMA AND tok.type%(i% + 1) = TT_IMM THEN
-      i% = i% + 1
-      imm% = tok.val%(i%) : i% = i% + 1
+      INC i%
+      imm% = tok.val%(i%) : INC i%
       encoder.emitLdstT4(opc32hi%, rn%, rt%, imm%, 0, 1)
       EXIT SUB
     END IF
@@ -1618,11 +1619,11 @@ SUB encoder.doLdrx(op%, fl%, cc%, sz%, size%, signed%)
   END IF
 
   IF tok.type%(i%) = TT_IMM THEN
-    imm% = tok.val%(i%) : i% = i% + 1
+    imm% = tok.val%(i%) : INC i%
     ldrxPreBang% = 0
     IF tok.type%(i%) = TT_RBRA THEN
-      i% = i% + 1
-      IF i% < tok.count% AND tok.type%(i%) = TT_BANG THEN ldrxPreBang% = 1 : i% = i% + 1
+      INC i%
+      IF i% < tok.count% AND tok.type%(i%) = TT_BANG THEN ldrxPreBang% = 1 : INC i%
     END IF
     IF ldrxPreBang% THEN
       encoder.emitLdstT4(opc32hi%, rn%, rt%, imm%, 1, 1)
@@ -1643,14 +1644,14 @@ SUB encoder.doLdrx(op%, fl%, cc%, sz%, size%, signed%)
   END IF
 
   IF tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI THEN
-    rm% = tok.val%(i%) : i% = i% + 1
+    rm% = tok.val%(i%) : INC i%
     sh% = SHIFT_NONE : shimm% = 0
-    IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+    IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
     IF i% < tok.count% AND tok.type%(i%) = TT_SHIFT THEN
-      sh% = tok.val%(i%) : i% = i% + 1
-      IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN shimm% = tok.val%(i%) : i% = i% + 1
+      sh% = tok.val%(i%) : INC i%
+      IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN shimm% = tok.val%(i%) : INC i%
     END IF
-    IF tok.type%(i%) = TT_RBRA THEN i% = i% + 1
+    IF tok.type%(i%) = TT_RBRA THEN INC i%
     IF rt% <= 7 AND rn% <= 7 AND rm% <= 7 AND sh% = SHIFT_NONE AND sz% <> SIZE_W THEN
       emit16(opc16% OR (rm% << 6) OR (rn% << 3) OR rt%)
     ELSE
@@ -1670,20 +1671,20 @@ SUB encoder.doStr(op%, fl%, cc%, sz%)
   LOCAL type2t%
   i% = op%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "STR: expected Rt" : EXIT SUB
-  rt% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rt% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   IF tok.type%(i%) <> TT_LBRA THEN showError "STR: expected [" : EXIT SUB
-  i% = i% + 1
+  INC i%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "STR: expected Rn" : EXIT SUB
-  rn% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rn% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
 
   IF tok.type%(i%) = TT_RBRA OR i% >= tok.count% THEN
-    IF tok.type%(i%) = TT_RBRA THEN i% = i% + 1
+    IF tok.type%(i%) = TT_RBRA THEN INC i%
     ' Post-index `[Rn],#imm`
     IF i% + 1 < tok.count% AND tok.type%(i%) = TT_COMMA AND tok.type%(i% + 1) = TT_IMM THEN
-      i% = i% + 1
-      imm% = tok.val%(i%) : i% = i% + 1
+      INC i%
+      imm% = tok.val%(i%) : INC i%
       encoder.emitLdstT4(&HF8C0, rn%, rt%, imm%, 0, 1)
       EXIT SUB
     END IF
@@ -1699,11 +1700,11 @@ SUB encoder.doStr(op%, fl%, cc%, sz%)
 
   IF tok.type%(i%) = TT_IMM OR tok.type%(i%) = TT_ADDR THEN
     IF tok.type%(i%) = TT_ADDR THEN imm% = lookupSym%(tok.str$(i%)) ELSE imm% = tok.val%(i%)
-    i% = i% + 1
+    INC i%
     strPreBang% = 0
     IF tok.type%(i%) = TT_RBRA THEN
-      i% = i% + 1
-      IF i% < tok.count% AND tok.type%(i%) = TT_BANG THEN strPreBang% = 1 : i% = i% + 1
+      INC i%
+      IF i% < tok.count% AND tok.type%(i%) = TT_BANG THEN strPreBang% = 1 : INC i%
     END IF
     IF strPreBang% THEN
       encoder.emitLdstT4(&HF8C0, rn%, rt%, imm%, 1, 1)
@@ -1724,14 +1725,14 @@ SUB encoder.doStr(op%, fl%, cc%, sz%)
   END IF
 
   IF tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI THEN
-    rm% = tok.val%(i%) : i% = i% + 1
+    rm% = tok.val%(i%) : INC i%
     sh% = SHIFT_NONE : shimm% = 0
-    IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+    IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
     IF i% < tok.count% AND tok.type%(i%) = TT_SHIFT THEN
-      sh% = tok.val%(i%) : i% = i% + 1
-      IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN shimm% = tok.val%(i%) : i% = i% + 1
+      sh% = tok.val%(i%) : INC i%
+      IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN shimm% = tok.val%(i%) : INC i%
     END IF
-    IF tok.type%(i%) = TT_RBRA THEN i% = i% + 1
+    IF tok.type%(i%) = TT_RBRA THEN INC i%
     IF rt% <= 7 AND rn% <= 7 AND rm% <= 7 AND sh% = SHIFT_NONE AND sz% <> SIZE_W THEN
       emit16(&H5000 OR (rm% << 6) OR (rn% << 3) OR rt%)
     ELSE
@@ -1752,20 +1753,20 @@ SUB encoder.doStrx(op%, fl%, cc%, sz%, size%)
   IF size% = 1 THEN opc32hi% = &HF880 ELSE opc32hi% = &HF8A0
   i% = op%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "STRx: expected Rt" : EXIT SUB
-  rt% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rt% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   IF tok.type%(i%) <> TT_LBRA THEN showError "STRx: expected [" : EXIT SUB
-  i% = i% + 1
+  INC i%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "STRx: expected Rn" : EXIT SUB
-  rn% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rn% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
 
   IF tok.type%(i%) = TT_RBRA OR i% >= tok.count% THEN
-    IF tok.type%(i%) = TT_RBRA THEN i% = i% + 1
+    IF tok.type%(i%) = TT_RBRA THEN INC i%
     ' Post-index `[Rn],#imm`
     IF i% + 1 < tok.count% AND tok.type%(i%) = TT_COMMA AND tok.type%(i% + 1) = TT_IMM THEN
-      i% = i% + 1
-      imm% = tok.val%(i%) : i% = i% + 1
+      INC i%
+      imm% = tok.val%(i%) : INC i%
       encoder.emitLdstT4(opc32hi%, rn%, rt%, imm%, 0, 1)
       EXIT SUB
     END IF
@@ -1781,11 +1782,11 @@ SUB encoder.doStrx(op%, fl%, cc%, sz%, size%)
   END IF
 
   IF tok.type%(i%) = TT_IMM THEN
-    imm% = tok.val%(i%) : i% = i% + 1
+    imm% = tok.val%(i%) : INC i%
     strxPreBang% = 0
     IF tok.type%(i%) = TT_RBRA THEN
-      i% = i% + 1
-      IF i% < tok.count% AND tok.type%(i%) = TT_BANG THEN strxPreBang% = 1 : i% = i% + 1
+      INC i%
+      IF i% < tok.count% AND tok.type%(i%) = TT_BANG THEN strxPreBang% = 1 : INC i%
     END IF
     IF strxPreBang% THEN
       encoder.emitLdstT4(opc32hi%, rn%, rt%, imm%, 1, 1)
@@ -1806,14 +1807,14 @@ SUB encoder.doStrx(op%, fl%, cc%, sz%, size%)
   END IF
 
   IF tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI THEN
-    rm% = tok.val%(i%) : i% = i% + 1
+    rm% = tok.val%(i%) : INC i%
     sh% = SHIFT_NONE : shimm% = 0
-    IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+    IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
     IF i% < tok.count% AND tok.type%(i%) = TT_SHIFT THEN
-      sh% = tok.val%(i%) : i% = i% + 1
-      IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN shimm% = tok.val%(i%) : i% = i% + 1
+      sh% = tok.val%(i%) : INC i%
+      IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN shimm% = tok.val%(i%) : INC i%
     END IF
-    IF tok.type%(i%) = TT_RBRA THEN i% = i% + 1
+    IF tok.type%(i%) = TT_RBRA THEN INC i%
     IF rt% <= 7 AND rn% <= 7 AND rm% <= 7 AND sh% = SHIFT_NONE AND sz% <> SIZE_W THEN
       emit16(opc16% OR (rm% << 6) OR (rn% << 3) OR rt%)
     ELSE
@@ -1833,10 +1834,10 @@ SUB encoder.doLdm(op%, fl%, cc%, sz%)
   LOCAL i%, rn%, bitmask%, w%
   i% = op%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "LDMIA: expected Rn" : EXIT SUB
-  rn% = tok.val%(i%) : i% = i% + 1
+  rn% = tok.val%(i%) : INC i%
   w% = 0
-  IF tok.type%(i%) = TT_BANG THEN w% = 1 : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  IF tok.type%(i%) = TT_BANG THEN w% = 1 : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   IF tok.type%(i%) <> TT_RLIST THEN showError "LDMIA: expected register list" : EXIT SUB
   bitmask% = tok.val%(i%)
   IF rn% <= 7 AND (bitmask% AND &HFF00) = 0 AND sz% <> SIZE_W THEN
@@ -1851,10 +1852,10 @@ SUB encoder.doStm(op%, fl%, cc%, sz%)
   LOCAL i%, rn%, bitmask%, w%
   i% = op%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "STMIA: expected Rn" : EXIT SUB
-  rn% = tok.val%(i%) : i% = i% + 1
+  rn% = tok.val%(i%) : INC i%
   w% = 0
-  IF tok.type%(i%) = TT_BANG THEN w% = 1 : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  IF tok.type%(i%) = TT_BANG THEN w% = 1 : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   IF tok.type%(i%) <> TT_RLIST THEN showError "STMIA: expected register list" : EXIT SUB
   bitmask% = tok.val%(i%)
   IF rn% <= 7 AND (bitmask% AND &HFF00) = 0 AND sz% <> SIZE_W THEN
@@ -1869,10 +1870,10 @@ SUB encoder.doLdmdb(op%, fl%, cc%, sz%)
   LOCAL i%, rn%, bitmask%, w%
   i% = op%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "LDMDB: expected Rn" : EXIT SUB
-  rn% = tok.val%(i%) : i% = i% + 1
+  rn% = tok.val%(i%) : INC i%
   w% = 0
-  IF tok.type%(i%) = TT_BANG THEN w% = 1 : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  IF tok.type%(i%) = TT_BANG THEN w% = 1 : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   IF tok.type%(i%) <> TT_RLIST THEN showError "LDMDB: expected register list" : EXIT SUB
   bitmask% = tok.val%(i%)
   emit32((&HE910 OR (w% << 5)) OR (rn% AND &HF), bitmask% AND &HDFFF)  ' bit 13 not allowed
@@ -1883,10 +1884,10 @@ SUB encoder.doStmdb(op%, fl%, cc%, sz%)
   LOCAL i%, rn%, bitmask%, w%
   i% = op%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "STMDB: expected Rn" : EXIT SUB
-  rn% = tok.val%(i%) : i% = i% + 1
+  rn% = tok.val%(i%) : INC i%
   w% = 0
-  IF tok.type%(i%) = TT_BANG THEN w% = 1 : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  IF tok.type%(i%) = TT_BANG THEN w% = 1 : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   IF tok.type%(i%) <> TT_RLIST THEN showError "STMDB: expected register list" : EXIT SUB
   bitmask% = tok.val%(i%)
   emit32((&HE900 OR (w% << 5)) OR (rn% AND &HF), bitmask% AND &HDFFF)
@@ -1964,8 +1965,8 @@ SUB encoder.doAdr(op%, fl%, cc%, sz%)
   LOCAL tgt%
   i% = op%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "ADR: expected Rd" : EXIT SUB
-  rd% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rd% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   IF tok.type%(i%) = TT_IMM THEN
     imm% = tok.val%(i%)
     IF rd% <= 7 AND (imm% AND 3) = 0 AND imm% >= 0 AND imm% <= 1020 AND sz% <> SIZE_W THEN
@@ -2138,8 +2139,8 @@ SUB encoder.doCbz(op%, fl%, cc%, sz%, isNz%)
   LOCAL lbl$ LENGTH MAX_NAME_LEN
   i% = op%
   IF NOT (tok.type%(i%) = TT_REGLO) THEN showError "CBZ: expected R0-R7" : EXIT SUB
-  rn% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rn% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   IF tok.type%(i%) <> TT_ADDR THEN showError "CBZ: expected label" : EXIT SUB
   lbl$ = tok.str$(i%)
   off% = io.ptr%
@@ -2242,10 +2243,10 @@ SUB encoder.doExtendOp(op%, fl%, cc%, sz%, subOp%)
   LOCAL op32h%
   i% = op%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "Extend: expected Rd" : EXIT SUB
-  rd% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rd% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "Extend: expected Rm" : EXIT SUB
-  rm% = tok.val%(i%) : i% = i% + 1
+  rm% = tok.val%(i%) : INC i%
   rotOk% = 1 : rot% = encoder.parseExtRot%(i%, rotOk%)
   IF rotOk% = 0 THEN showError "Extend: bad rotation (use ROR #0/#8/#16/#24)" : EXIT SUB
   IF rd% <= 7 AND rm% <= 7 AND rot% = 0 AND sz% <> SIZE_W THEN
@@ -2271,13 +2272,13 @@ FUNCTION encoder.parseExtRot%(i%, ok%)
   LOCAL n%
   ok% = 1
   encoder.parseExtRot% = 0
-  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
   IF i% >= tok.count% THEN EXIT FUNCTION
   IF tok.type%(i%) <> TT_SHIFT THEN EXIT FUNCTION
   IF tok.val%(i%) <> SHIFT_ROR THEN ok% = 0 : EXIT FUNCTION
-  i% = i% + 1
+  INC i%
   IF i% >= tok.count% OR tok.type%(i%) <> TT_IMM THEN ok% = 0 : EXIT FUNCTION
-  n% = tok.val%(i%) : i% = i% + 1
+  n% = tok.val%(i%) : INC i%
   SELECT CASE n%
     CASE 0  : encoder.parseExtRot% = 0
     CASE 8  : encoder.parseExtRot% = 1
@@ -2296,16 +2297,16 @@ SUB encoder.doExtend32(op%, opHi%, hasRn%)
   LOCAL i%, rd%, rn%, rm%, rot%, rotOk%
   i% = op%
   IF i% >= tok.count% OR (tok.type%(i%) <> TT_REGLO AND tok.type%(i%) <> TT_REGHI) THEN showError "Extend: expected Rd" : EXIT SUB
-  rd% = tok.val%(i%) : i% = i% + 1
-  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rd% = tok.val%(i%) : INC i%
+  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
   rn% = 15
   IF hasRn% THEN
     IF i% >= tok.count% OR (tok.type%(i%) <> TT_REGLO AND tok.type%(i%) <> TT_REGHI) THEN showError "Extend: expected Rn" : EXIT SUB
-    rn% = tok.val%(i%) : i% = i% + 1
-    IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+    rn% = tok.val%(i%) : INC i%
+    IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
   END IF
   IF i% >= tok.count% OR (tok.type%(i%) <> TT_REGLO AND tok.type%(i%) <> TT_REGHI) THEN showError "Extend: expected Rm" : EXIT SUB
-  rm% = tok.val%(i%) : i% = i% + 1
+  rm% = tok.val%(i%) : INC i%
   rotOk% = 1 : rot% = encoder.parseExtRot%(i%, rotOk%)
   IF rotOk% = 0 THEN showError "Extend: bad rotation (use ROR #0/#8/#16/#24)" : EXIT SUB
   emit32(opHi% OR (rn% AND &HF), (&HF << 12) OR ((rd% AND &HF) << 8) OR &H80 OR (rot% << 4) OR (rm% AND &HF))
@@ -2318,17 +2319,17 @@ SUB encoder.doPkh(op%, isTb%)
   LOCAL i%, rd%, rn%, rm%, sh%, shimm%, imm3%, imm2%
   i% = op%
   IF i% >= tok.count% OR (tok.type%(i%) <> TT_REGLO AND tok.type%(i%) <> TT_REGHI) THEN showError "PKH: expected Rd" : EXIT SUB
-  rd% = tok.val%(i%) : i% = i% + 1
-  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rd% = tok.val%(i%) : INC i%
+  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
   IF i% >= tok.count% OR (tok.type%(i%) <> TT_REGLO AND tok.type%(i%) <> TT_REGHI) THEN showError "PKH: expected Rn" : EXIT SUB
-  rn% = tok.val%(i%) : i% = i% + 1
-  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rn% = tok.val%(i%) : INC i%
+  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
   IF i% >= tok.count% OR (tok.type%(i%) <> TT_REGLO AND tok.type%(i%) <> TT_REGHI) THEN showError "PKH: expected Rm" : EXIT SUB
-  rm% = tok.val%(i%) : i% = i% + 1
+  rm% = tok.val%(i%) : INC i%
   shimm% = 0
-  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
   IF i% < tok.count% AND tok.type%(i%) = TT_SHIFT THEN
-    sh% = tok.val%(i%) : i% = i% + 1
+    sh% = tok.val%(i%) : INC i%
     IF isTb% AND sh% <> SHIFT_ASR THEN showError "PKHTB: shift must be ASR" : EXIT SUB
     IF NOT isTb% AND sh% <> SHIFT_LSL THEN showError "PKHBT: shift must be LSL" : EXIT SUB
     IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN shimm% = tok.val%(i%) AND &H1F
@@ -2350,11 +2351,11 @@ SUB encoder.doParAddSub(op%, op1%, op2%)
   LOCAL i%, rd%, rn%, rm%
   i% = op%
   IF i% >= tok.count% OR (tok.type%(i%) <> TT_REGLO AND tok.type%(i%) <> TT_REGHI) THEN showError "ParAdd/Sub: expected Rd" : EXIT SUB
-  rd% = tok.val%(i%) : i% = i% + 1
-  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rd% = tok.val%(i%) : INC i%
+  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
   IF i% >= tok.count% OR (tok.type%(i%) <> TT_REGLO AND tok.type%(i%) <> TT_REGHI) THEN showError "ParAdd/Sub: expected Rn" : EXIT SUB
-  rn% = tok.val%(i%) : i% = i% + 1
-  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rn% = tok.val%(i%) : INC i%
+  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
   IF i% >= tok.count% OR (tok.type%(i%) <> TT_REGLO AND tok.type%(i%) <> TT_REGHI) THEN showError "ParAdd/Sub: expected Rm" : EXIT SUB
   rm% = tok.val%(i%)
   emit32(&HFA80 OR ((op1% AND 7) << 4) OR (rn% AND &HF), &HF000 OR ((rd% AND &HF) << 8) OR ((op2% AND 7) << 4) OR (rm% AND &HF))
@@ -2369,26 +2370,26 @@ SUB encoder.doLdrex(op%, fl%, cc%, sz%, isLoad%)
   LOCAL i%, rd%, rt%, rn%, imm%, off%
   i% = op%
   IF i% >= tok.count% OR (tok.type%(i%) <> TT_REGLO AND tok.type%(i%) <> TT_REGHI) THEN showError "LDREX/STREX: expected register" : EXIT SUB
-  rt% = tok.val%(i%) : i% = i% + 1
-  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rt% = tok.val%(i%) : INC i%
+  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
   rd% = 15
   IF NOT isLoad% THEN
     rd% = rt%
     IF i% >= tok.count% OR (tok.type%(i%) <> TT_REGLO AND tok.type%(i%) <> TT_REGHI) THEN showError "STREX: expected Rt" : EXIT SUB
-    rt% = tok.val%(i%) : i% = i% + 1
-    IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+    rt% = tok.val%(i%) : INC i%
+    IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
   END IF
   IF i% >= tok.count% OR tok.type%(i%) <> TT_LBRA THEN showError "LDREX/STREX: expected [" : EXIT SUB
-  i% = i% + 1
+  INC i%
   IF i% >= tok.count% OR (tok.type%(i%) <> TT_REGLO AND tok.type%(i%) <> TT_REGHI) THEN showError "LDREX/STREX: expected Rn" : EXIT SUB
-  rn% = tok.val%(i%) : i% = i% + 1
+  rn% = tok.val%(i%) : INC i%
   imm% = 0
-  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
   IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN
-    imm% = tok.val%(i%) : i% = i% + 1
+    imm% = tok.val%(i%) : INC i%
     IF imm% < 0 OR imm% > 1020 OR (imm% AND 3) <> 0 THEN showError "LDREX/STREX: imm must be 0..1020 mult of 4" : EXIT SUB
   END IF
-  IF i% < tok.count% AND tok.type%(i%) = TT_RBRA THEN i% = i% + 1
+  IF i% < tok.count% AND tok.type%(i%) = TT_RBRA THEN INC i%
   off% = (imm% >> 2) AND &HFF
   IF isLoad% THEN
     emit32(&HE850 OR (rn% AND &HF), ((rt% AND &HF) << 12) OR &HF00 OR off%)
@@ -2408,20 +2409,20 @@ SUB encoder.doLdrexBH(op%, fl%, cc%, sz%, isLoad%, isH%)
   LOCAL i%, rd%, rt%, rn%, op2%
   i% = op%
   IF i% >= tok.count% OR (tok.type%(i%) <> TT_REGLO AND tok.type%(i%) <> TT_REGHI) THEN showError "LDREX/STREX B/H: expected register" : EXIT SUB
-  rt% = tok.val%(i%) : i% = i% + 1
-  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rt% = tok.val%(i%) : INC i%
+  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
   rd% = 15
   IF NOT isLoad% THEN
     rd% = rt%
     IF i% >= tok.count% OR (tok.type%(i%) <> TT_REGLO AND tok.type%(i%) <> TT_REGHI) THEN showError "STREX B/H: expected Rt" : EXIT SUB
-    rt% = tok.val%(i%) : i% = i% + 1
-    IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+    rt% = tok.val%(i%) : INC i%
+    IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
   END IF
   IF i% >= tok.count% OR tok.type%(i%) <> TT_LBRA THEN showError "LDREX/STREX B/H: expected [" : EXIT SUB
-  i% = i% + 1
+  INC i%
   IF i% >= tok.count% OR (tok.type%(i%) <> TT_REGLO AND tok.type%(i%) <> TT_REGHI) THEN showError "LDREX/STREX B/H: expected Rn" : EXIT SUB
-  rn% = tok.val%(i%) : i% = i% + 1
-  IF i% < tok.count% AND tok.type%(i%) = TT_RBRA THEN i% = i% + 1
+  rn% = tok.val%(i%) : INC i%
+  IF i% < tok.count% AND tok.type%(i%) = TT_RBRA THEN INC i%
   IF isH% THEN op2% = 5 ELSE op2% = 4
   IF isLoad% THEN
     emit32(&HE8D0 OR (rn% AND &HF), ((rt% AND &HF) << 12) OR &HF0F OR (op2% << 4))
@@ -2438,39 +2439,39 @@ SUB encoder.doLdrd(op%, fl%, cc%, sz%, isLoad%)
   LOCAL i%, rt%, rt2%, rn%, imm%, p%, u%, w%, l%, off%, postIndex%, hadBang%
   i% = op%
   IF i% >= tok.count% OR (tok.type%(i%) <> TT_REGLO AND tok.type%(i%) <> TT_REGHI) THEN showError "LDRD/STRD: expected Rt" : EXIT SUB
-  rt% = tok.val%(i%) : i% = i% + 1
-  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rt% = tok.val%(i%) : INC i%
+  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
   IF i% >= tok.count% OR (tok.type%(i%) <> TT_REGLO AND tok.type%(i%) <> TT_REGHI) THEN showError "LDRD/STRD: expected Rt2" : EXIT SUB
-  rt2% = tok.val%(i%) : i% = i% + 1
-  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rt2% = tok.val%(i%) : INC i%
+  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
   IF i% >= tok.count% OR tok.type%(i%) <> TT_LBRA THEN showError "LDRD/STRD: expected [" : EXIT SUB
-  i% = i% + 1
+  INC i%
   IF i% >= tok.count% OR (tok.type%(i%) <> TT_REGLO AND tok.type%(i%) <> TT_REGHI) THEN showError "LDRD/STRD: expected Rn" : EXIT SUB
-  rn% = tok.val%(i%) : i% = i% + 1
+  rn% = tok.val%(i%) : INC i%
   imm% = 0 : postIndex% = 0
   IF i% < tok.count% AND tok.type%(i%) = TT_RBRA THEN
-    i% = i% + 1
+    INC i%
     ' Possible post-index: ], #imm
     IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN
-      i% = i% + 1
+      INC i%
       IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN
         imm% = tok.val%(i%)
-        i% = i% + 1
+        INC i%
         postIndex% = 1
       END IF
     END IF
   ELSE
-    IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+    IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
     IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN
       imm% = tok.val%(i%)
-      i% = i% + 1
+      INC i%
     END IF
-    IF i% < tok.count% AND tok.type%(i%) = TT_RBRA THEN i% = i% + 1
+    IF i% < tok.count% AND tok.type%(i%) = TT_RBRA THEN INC i%
   END IF
   hadBang% = 0
   IF i% < tok.count% AND tok.type%(i%) = TT_BANG THEN
     hadBang% = 1
-    i% = i% + 1
+    INC i%
   END IF
   IF postIndex% THEN
     p% = 0 : w% = 1
@@ -2501,19 +2502,19 @@ SUB encoder.doLdrxt(op%, fl%, cc%, sz%, baseHi%)
   LOCAL i%, rt%, rn%, imm%
   i% = op%
   IF i% >= tok.count% OR (tok.type%(i%) <> TT_REGLO AND tok.type%(i%) <> TT_REGHI) THEN showError "LDR/STR-T: expected Rt" : EXIT SUB
-  rt% = tok.val%(i%) : i% = i% + 1
-  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rt% = tok.val%(i%) : INC i%
+  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
   IF i% >= tok.count% OR tok.type%(i%) <> TT_LBRA THEN showError "LDR/STR-T: expected [" : EXIT SUB
-  i% = i% + 1
+  INC i%
   IF i% >= tok.count% OR (tok.type%(i%) <> TT_REGLO AND tok.type%(i%) <> TT_REGHI) THEN showError "LDR/STR-T: expected Rn" : EXIT SUB
-  rn% = tok.val%(i%) : i% = i% + 1
+  rn% = tok.val%(i%) : INC i%
   imm% = 0
-  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
   IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN
-    imm% = tok.val%(i%) : i% = i% + 1
+    imm% = tok.val%(i%) : INC i%
     IF imm% < 0 OR imm% > 255 THEN showError "LDR/STR-T: imm8 must be 0..255" : EXIT SUB
   END IF
-  IF i% < tok.count% AND tok.type%(i%) = TT_RBRA THEN i% = i% + 1
+  IF i% < tok.count% AND tok.type%(i%) = TT_RBRA THEN INC i%
   emit32(baseHi% OR (rn% AND &HF), ((rt% AND &HF) << 12) OR &HE00 OR (imm% AND &HFF))
 END SUB
 
@@ -2546,8 +2547,8 @@ SUB encoder.doRevOp(op%, fl%, cc%, sz%, subOp%)
   LOCAL i%, rd%, rm%
   i% = op%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "REV: expected Rd" : EXIT SUB
-  rd% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rd% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "REV: expected Rm" : EXIT SUB
   rm% = tok.val%(i%)
   IF rd% <= 7 AND rm% <= 7 AND sz% <> SIZE_W THEN
@@ -2593,7 +2594,7 @@ SUB encoder.doCps(op%, fl%, cc%, sz%)
   LOCAL ch$ LENGTH 1
   i% = op%
   IF i% >= tok.count% OR tok.type%(i%) <> TT_ADDR THEN showError "CPS: expected IE or ID" : EXIT SUB
-  modeStr$ = UCASE$(tok.str$(i%)) : i% = i% + 1
+  modeStr$ = UCASE$(tok.str$(i%)) : INC i%
   IF modeStr$ = "IE" THEN
     im% = 0
   ELSEIF modeStr$ = "ID" THEN
@@ -2625,8 +2626,8 @@ SUB encoder.doClz(op%, fl%, cc%, sz%)
   LOCAL i%, rd%, rm%
   i% = op%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "CLZ: expected Rd" : EXIT SUB
-  rd% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rd% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "CLZ: expected Rm" : EXIT SUB
   rm% = tok.val%(i%)
   ' CLZ T1: FAB0 Rm | F Rd 80 Rm
@@ -2637,8 +2638,8 @@ SUB encoder.doRbit(op%, fl%, cc%, sz%)
   LOCAL i%, rd%, rm%
   i% = op%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "RBIT: expected Rd" : EXIT SUB
-  rd% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rd% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "RBIT: expected Rm" : EXIT SUB
   rm% = tok.val%(i%)
   ' RBIT T1: FA90 Rm | F Rd A0 Rm
@@ -2652,11 +2653,11 @@ SUB encoder.doDiv(op%, fl%, cc%, sz%, isUdiv%)
   LOCAL i%, rd%, rn%, rm%
   i% = op%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "DIV: expected Rd" : EXIT SUB
-  rd% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rd% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "DIV: expected Rn" : EXIT SUB
-  rn% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rn% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "DIV: expected Rm" : EXIT SUB
   rm% = tok.val%(i%)
   ' SDIV T1: FB90 Rn | F Rd F0 Rm
@@ -2675,12 +2676,12 @@ SUB encoder.doMla(op%, fl%, cc%, sz%)
   LOCAL i%, rd%, rn%, rm%, ra%
   i% = op%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "MLA: expected Rd" : EXIT SUB
-  rd% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
-  rn% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
-  rm% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rd% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
+  rn% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
+  rm% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   ra% = tok.val%(i%)
   emit32(&HFB00 OR (rn% AND &HF), ((ra% AND &HF) << 12) OR ((rd% AND &HF) << 8) OR (rm% AND &HF))
 END SUB
@@ -2689,12 +2690,12 @@ SUB encoder.doMls(op%, fl%, cc%, sz%)
   LOCAL i%, rd%, rn%, rm%, ra%
   i% = op%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "MLS: expected Rd" : EXIT SUB
-  rd% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
-  rn% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
-  rm% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rd% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
+  rn% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
+  rm% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   ra% = tok.val%(i%)
   emit32(&HFB00 OR (rn% AND &HF), ((ra% AND &HF) << 12) OR ((rd% AND &HF) << 8) OR &H10 OR (rm% AND &HF))
 END SUB
@@ -2706,12 +2707,12 @@ END SUB
 SUB encoder.doMull(op%, fl%, cc%, sz%, subOp%)
   LOCAL i%, rdlo%, rdhi%, rn%, rm%
   i% = op%
-  rdlo% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
-  rdhi% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
-  rn%   = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rdlo% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
+  rdhi% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
+  rn%   = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   rm%   = tok.val%(i%)
   SELECT CASE subOp%
     CASE 0 : emit32(&HFB80 OR (rn% AND &HF), ((rdlo% AND &HF) << 12) OR ((rdhi% AND &HF) << 8) OR (rm% AND &HF))  ' SMULL
@@ -2729,14 +2730,14 @@ SUB encoder.doBitfield(op%, fl%, cc%, sz%, isUbfx%)
   LOCAL widthm1%, imm3%, imm2%
   i% = op%
   IF i% >= tok.count% OR (tok.type%(i%) <> TT_REGLO AND tok.type%(i%) <> TT_REGHI) THEN showError "BFX: expected Rd" : EXIT SUB
-  rd% = tok.val%(i%) : i% = i% + 1
-  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rd% = tok.val%(i%) : INC i%
+  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
   IF i% >= tok.count% OR (tok.type%(i%) <> TT_REGLO AND tok.type%(i%) <> TT_REGHI) THEN showError "BFX: expected Rn" : EXIT SUB
-  rn% = tok.val%(i%) : i% = i% + 1
-  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rn% = tok.val%(i%) : INC i%
+  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
   IF i% >= tok.count% OR tok.type%(i%) <> TT_IMM THEN showError "BFX: expected #lsb" : EXIT SUB
-  lsb% = tok.val%(i%) : i% = i% + 1
-  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  lsb% = tok.val%(i%) : INC i%
+  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
   IF i% >= tok.count% OR tok.type%(i%) <> TT_IMM THEN showError "BFX: expected #width" : EXIT SUB
   width% = tok.val%(i%)
   widthm1% = width% - 1
@@ -2755,14 +2756,14 @@ SUB encoder.doBfi(op%, fl%, cc%, sz%)
   LOCAL i%, rd%, rn%, lsb%, width%, msb%, imm3%, imm2%
   i% = op%
   IF i% >= tok.count% OR (tok.type%(i%) <> TT_REGLO AND tok.type%(i%) <> TT_REGHI) THEN showError "BFI: expected Rd" : EXIT SUB
-  rd% = tok.val%(i%) : i% = i% + 1
-  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rd% = tok.val%(i%) : INC i%
+  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
   IF i% >= tok.count% OR (tok.type%(i%) <> TT_REGLO AND tok.type%(i%) <> TT_REGHI) THEN showError "BFI: expected Rn" : EXIT SUB
-  rn% = tok.val%(i%) : i% = i% + 1
-  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rn% = tok.val%(i%) : INC i%
+  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
   IF i% >= tok.count% OR tok.type%(i%) <> TT_IMM THEN showError "BFI: expected #lsb" : EXIT SUB
-  lsb% = tok.val%(i%) : i% = i% + 1
-  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  lsb% = tok.val%(i%) : INC i%
+  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
   IF i% >= tok.count% OR tok.type%(i%) <> TT_IMM THEN showError "BFI: expected #width" : EXIT SUB
   width% = tok.val%(i%)
   msb% = lsb% + width% - 1
@@ -2774,11 +2775,11 @@ SUB encoder.doBfc(op%, fl%, cc%, sz%)
   LOCAL i%, rd%, lsb%, width%, msb%, imm3%, imm2%
   i% = op%
   IF i% >= tok.count% OR (tok.type%(i%) <> TT_REGLO AND tok.type%(i%) <> TT_REGHI) THEN showError "BFC: expected Rd" : EXIT SUB
-  rd% = tok.val%(i%) : i% = i% + 1
-  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rd% = tok.val%(i%) : INC i%
+  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
   IF i% >= tok.count% OR tok.type%(i%) <> TT_IMM THEN showError "BFC: expected #lsb" : EXIT SUB
-  lsb% = tok.val%(i%) : i% = i% + 1
-  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  lsb% = tok.val%(i%) : INC i%
+  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
   IF i% >= tok.count% OR tok.type%(i%) <> TT_IMM THEN showError "BFC: expected #width" : EXIT SUB
   width% = tok.val%(i%)
   msb% = lsb% + width% - 1
@@ -2792,11 +2793,11 @@ END SUB
 SUB encoder.doTb(op%, fl%, cc%, sz%, isH%)
   LOCAL i%, rn%, rm%
   i% = op%
-  IF tok.type%(i%) = TT_LBRA THEN i% = i% + 1
-  rn% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
-  rm% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_RBRA THEN i% = i% + 1
+  IF tok.type%(i%) = TT_LBRA THEN INC i%
+  rn% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
+  rm% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_RBRA THEN INC i%
   emit32(&HE8D0 OR (rn% AND &HF), &HF000 OR (isH% << 4) OR (rm% AND &HF))
 END SUB
 
@@ -2806,10 +2807,10 @@ END SUB
 SUB encoder.doSel(op%, fl%, cc%, sz%)
   LOCAL i%, rd%, rn%, rm%
   i% = op%
-  rd% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
-  rn% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rd% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
+  rn% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   rm% = tok.val%(i%)
   emit32(&HFAA0 OR (rn% AND &HF), (&HF << 12) OR ((rd% AND &HF) << 8) OR &H80 OR (rm% AND &HF))
 END SUB
@@ -2886,8 +2887,8 @@ SUB encoder.doMrs(op%, fl%, cc%, sz%)
   LOCAL i%, rd%, sysm%, mask%
   i% = op%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "MRS: expected Rd" : EXIT SUB
-  rd% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rd% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   IF i% >= tok.count% OR tok.type%(i%) <> TT_ADDR THEN showError "MRS: expected special register" : EXIT SUB
   sysm% = encoder.parseSysReg%(tok.str$(i%), mask%)
   IF sysm% < 0 THEN showError "MRS: unknown special register " + tok.str$(i%) : EXIT SUB
@@ -2901,8 +2902,8 @@ SUB encoder.doMsr(op%, fl%, cc%, sz%)
   IF i% >= tok.count% OR tok.type%(i%) <> TT_ADDR THEN showError "MSR: expected special register" : EXIT SUB
   sysm% = encoder.parseSysReg%(tok.str$(i%), mask%)
   IF sysm% < 0 THEN showError "MSR: unknown special register " + tok.str$(i%) : EXIT SUB
-  i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "MSR: expected Rn" : EXIT SUB
   rn% = tok.val%(i%)
   emit32(&HF380 OR (rn% AND &HF), &H8000 OR ((mask% AND 3) << 10) OR (sysm% AND &HFF))
@@ -2934,13 +2935,13 @@ SUB encoder.doPldPli(op%, fl%, cc%, sz%, pli%)
   END IF
 
   IF tok.type%(i%) <> TT_LBRA THEN showError "PLD/PLI: expected [ or label" : EXIT SUB
-  i% = i% + 1
+  INC i%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "PLD/PLI: expected Rn" : EXIT SUB
-  rn% = tok.val%(i%) : i% = i% + 1
+  rn% = tok.val%(i%) : INC i%
 
   ' [Rn]
   IF tok.type%(i%) = TT_RBRA THEN
-    i% = i% + 1
+    INC i%
     IF rn% = 15 THEN
       emit32(&HF89F OR (pli% << 8), &HF000)
     ELSE
@@ -2949,12 +2950,12 @@ SUB encoder.doPldPli(op%, fl%, cc%, sz%, pli%)
     EXIT SUB
   END IF
 
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
 
   ' [Rn, #imm]
   IF tok.type%(i%) = TT_IMM THEN
-    imm% = tok.val%(i%) : i% = i% + 1
-    IF tok.type%(i%) = TT_RBRA THEN i% = i% + 1
+    imm% = tok.val%(i%) : INC i%
+    IF tok.type%(i%) = TT_RBRA THEN INC i%
     IF imm% > &H7FFFFFFF THEN
       magn% = (-imm%) AND &HFFFFFFFF
       IF magn% > 255 THEN showError "PLD/PLI: negative imm out of range (-255..0)" : EXIT SUB
@@ -2968,14 +2969,14 @@ SUB encoder.doPldPli(op%, fl%, cc%, sz%, pli%)
 
   ' [Rn, Rm {,LSL #imm2}]
   IF tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI THEN
-    rm% = tok.val%(i%) : i% = i% + 1
+    rm% = tok.val%(i%) : INC i%
     sh% = SHIFT_NONE : shimm% = 0
-    IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+    IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
     IF i% < tok.count% AND tok.type%(i%) = TT_SHIFT THEN
-      sh% = tok.val%(i%) : i% = i% + 1
-      IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN shimm% = tok.val%(i%) : i% = i% + 1
+      sh% = tok.val%(i%) : INC i%
+      IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN shimm% = tok.val%(i%) : INC i%
     END IF
-    IF tok.type%(i%) = TT_RBRA THEN i% = i% + 1
+    IF tok.type%(i%) = TT_RBRA THEN INC i%
     IF sh% <> SHIFT_NONE AND sh% <> SHIFT_LSL THEN showError "PLD/PLI: only LSL allowed" : EXIT SUB
     IF shimm% < 0 OR shimm% > 3 THEN showError "PLD/PLI: shift imm out of range (0..3)" : EXIT SUB
     emit32((&HF810 OR (pli% << 8)) OR (rn% AND &HF), &HF000 OR ((shimm% AND 3) << 4) OR (rm% AND &HF))
@@ -2996,15 +2997,15 @@ SUB encoder.doMul3or4(op%, hw0base%, hw1mid%, hasRa%)
   LOCAL i%, rd%, rn%, rm%, ra%
   i% = op%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "Mul: expected Rd" : EXIT SUB
-  rd% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rd% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "Mul: expected Rn" : EXIT SUB
-  rn% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rn% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "Mul: expected Rm" : EXIT SUB
-  rm% = tok.val%(i%) : i% = i% + 1
+  rm% = tok.val%(i%) : INC i%
   IF hasRa% THEN
-    IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+    IF tok.type%(i%) = TT_COMMA THEN INC i%
     IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "Mul: expected Ra" : EXIT SUB
     ra% = tok.val%(i%)
   ELSE
@@ -3023,14 +3024,14 @@ SUB encoder.doMull4op(op%, hw0base%, hw1mid%)
   LOCAL i%, rdlo%, rdhi%, rn%, rm%
   i% = op%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "MullDsp: expected RdLo" : EXIT SUB
-  rdlo% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rdlo% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "MullDsp: expected RdHi" : EXIT SUB
-  rdhi% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rdhi% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "MullDsp: expected Rn" : EXIT SUB
-  rn% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rn% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "MullDsp: expected Rm" : EXIT SUB
   rm% = tok.val%(i%)
   emit32(hw0base% OR (rn% AND &HF), ((rdlo% AND &HF) << 12) OR ((rdhi% AND &HF) << 8) OR (hw1mid% AND &HF0) OR (rm% AND &HF))
@@ -3047,17 +3048,17 @@ SUB encoder.doSat(op%, hw0base%, minus1%)
   LOCAL i%, rd%, sat%, rn%, sh%, shimm%, shBit%, sat5%, imm3%, imm2%
   i% = op%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "SAT: expected Rd" : EXIT SUB
-  rd% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rd% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   IF tok.type%(i%) <> TT_IMM THEN showError "SAT: expected #sat" : EXIT SUB
-  sat% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  sat% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "SAT: expected Rn" : EXIT SUB
-  rn% = tok.val%(i%) : i% = i% + 1
+  rn% = tok.val%(i%) : INC i%
   sh% = SHIFT_NONE : shimm% = 0
-  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  IF i% < tok.count% AND tok.type%(i%) = TT_COMMA THEN INC i%
   IF i% < tok.count% AND tok.type%(i%) = TT_SHIFT THEN
-    sh% = tok.val%(i%) : i% = i% + 1
+    sh% = tok.val%(i%) : INC i%
     IF i% < tok.count% AND tok.type%(i%) = TT_IMM THEN shimm% = tok.val%(i%)
   END IF
   IF sh% <> SHIFT_NONE AND sh% <> SHIFT_LSL AND sh% <> SHIFT_ASR THEN showError "SAT: only LSL/ASR allowed" : EXIT SUB
@@ -3085,11 +3086,11 @@ SUB encoder.doSat16(op%, hw0base%, minus1%)
   LOCAL i%, rd%, sat%, rn%, sat4%
   i% = op%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "SAT16: expected Rd" : EXIT SUB
-  rd% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rd% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   IF tok.type%(i%) <> TT_IMM THEN showError "SAT16: expected #sat" : EXIT SUB
-  sat% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  sat% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "SAT16: expected Rn" : EXIT SUB
   rn% = tok.val%(i%)
   IF minus1% THEN
@@ -3112,11 +3113,11 @@ SUB encoder.doSatArith(op%, op4%)
   LOCAL i%, rd%, rm%, rn%
   i% = op%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "Q{D}ADD/SUB: expected Rd" : EXIT SUB
-  rd% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rd% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "Q{D}ADD/SUB: expected Rm" : EXIT SUB
-  rm% = tok.val%(i%) : i% = i% + 1
-  IF tok.type%(i%) = TT_COMMA THEN i% = i% + 1
+  rm% = tok.val%(i%) : INC i%
+  IF tok.type%(i%) = TT_COMMA THEN INC i%
   IF NOT (tok.type%(i%) = TT_REGLO OR tok.type%(i%) = TT_REGHI) THEN showError "Q{D}ADD/SUB: expected Rn" : EXIT SUB
   rn% = tok.val%(i%)
   emit32(&HFA80 OR (rn% AND &HF), &HF000 OR ((rd% AND &HF) << 8) OR ((op4% AND &HF) << 4) OR (rm% AND &HF))

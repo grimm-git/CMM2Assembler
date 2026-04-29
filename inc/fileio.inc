@@ -195,6 +195,10 @@ SUB readCSUB(filename$)
 		    csub.name$=MID$(trimmed$,6)  ' No parameters given
 		ENDIF
 		inBody% = 1
+	    ELSEIF UCASE$(trimmed$) = "CSUB" THEN
+		printWarning "CSUB header without name in " + filename$
+		csub.name$ = ""
+		inBody% = 1
 	    END IF
 	ELSE
 	    IF UCASE$(trimmed$) = "END CSUB" THEN EXIT DO

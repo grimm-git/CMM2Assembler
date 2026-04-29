@@ -1,5 +1,9 @@
 # Changelog
 
+2026-05-01  1.0 (public release)
+    * missing CSUB name caused an error, downgraded to a warning.
+    * replacing statements i% = i% +1 with INC i%, reduced source by 2k
+
 2026-04-27  0.8 (### Lexer hardening, disassembler addr-0 fix)
     * `inc/lexer.inc`: `lexer.init` trims trailing whitespace/CR; over-length
       lines now raise a proper error instead of "String too long".
