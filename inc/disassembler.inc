@@ -211,11 +211,11 @@ FUNCTION dis.applyIT$(s$, cc$)
 END FUNCTION
 
 ' Return "L<idx>" if addr% is a known label, "EXT_xxxxxxxx" if external, else hex.
-FUNCTION dis.lblOrHex$(addr%)
+FUNCTION dis.lblName$(addr%)
     LOCAL idx% = dis.labelIdx%(addr%)
-    IF idx% >= 0 THEN dis.lblOrHex$ = "label" + STR$(idx%) : EXIT FUNCTION
-    IF dis.isExt%(addr%) THEN dis.lblOrHex$ = dis.extName$(addr%) : EXIT FUNCTION
-    dis.lblOrHex$ = dis.h32$(addr%)
+    IF idx% >= 0 THEN dis.lblName$ = "label" + STR$(idx%) : EXIT FUNCTION
+    IF dis.isExt%(addr%) THEN dis.lblName$ = dis.extName$(addr%) : EXIT FUNCTION
+    dis.lblName$ = dis.h32$(addr%)
 END FUNCTION
 
 ' 1 if addr% is a known literal pool address
@@ -610,7 +610,7 @@ FUNCTION dis.decADR$(hw%, addr%)
     LOCAL rd%   = (hw% >> 8) AND 7
     LOCAL imm%  = (hw% AND &HFF) * 4
     LOCAL tgt%  = ((addr% + 4) AND &HFFFFFFFC) + imm%
-    dis.decADR$ = dis.fmtMne$("ADR") + dis.rn$(rd%) + "," + dis.lblOrHex$(tgt%)
+    dis.decADR$ = dis.fmtMne$("ADR") + dis.rn$(rd%) + "," + dis.lblName$(tgt%)
 END FUNCTION
 
 ' ADD Rd,SP,#imm8*4  (top5=&H15)
@@ -711,7 +711,7 @@ FUNCTION dis.decMisc$(hw%, addr%)
         ib%   = (hw% >> 9) AND 1
         imm%  = (ib% << 6) OR (imm5% << 1)
         tgt%  = addr% + 4 + imm%
-        dis.decMisc$ = dis.fmtMne$("CBZ") + dis.rn$(rd%) + "," + dis.lblOrHex$(tgt%)
+        dis.decMisc$ = dis.fmtMne$("CBZ") + dis.rn$(rd%) + "," + dis.lblName$(tgt%)
         EXIT FUNCTION
     END IF
 
@@ -720,7 +720,7 @@ FUNCTION dis.decMisc$(hw%, addr%)
         ib%   = (hw% >> 9) AND 1
         imm%  = (ib% << 6) OR (imm5% << 1)
         tgt%  = addr% + 4 + imm%
-        dis.decMisc$ = dis.fmtMne$("CBNZ") + dis.rn$(rd%) + "," + dis.lblOrHex$(tgt%)
+        dis.decMisc$ = dis.fmtMne$("CBNZ") + dis.rn$(rd%) + "," + dis.lblName$(tgt%)
         EXIT FUNCTION
     END IF
 
@@ -791,14 +791,14 @@ FUNCTION dis.decBcc$(hw%, addr%)
     CASE 14 : dis.decBcc$ = dis.fmtMne$(".hword") + dis.h16$(hw%)   ' UDF
     CASE 15 : dis.decBcc$ = dis.fmtMne$("SVC") + "#" + STR$(hw% AND &HFF)
     CASE ELSE
-        dis.decBcc$ = dis.fmtMne$("B" + dis.cc$(cc4%)) + dis.lblOrHex$(tgt%)
+        dis.decBcc$ = dis.fmtMne$("B" + dis.cc$(cc4%)) + dis.lblName$(tgt%)
     END SELECT
 END FUNCTION
 
 ' B unconditional  (top5=&H1C)
 FUNCTION dis.decB$(hw%, addr%)
     LOCAL tgt% = addr% + 4 + dis.sext%(hw% AND &H7FF, 11) * 2
-    dis.decB$ = dis.fmtMne$("B") + dis.lblOrHex$(tgt%)
+    dis.decB$ = dis.fmtMne$("B") + dis.lblName$(tgt%)
 END FUNCTION
 
 ' ============================================================
@@ -1436,14 +1436,14 @@ FUNCTION dis.dec32$(hw0%, hw1%, addr%)
     ' BL (T1): hw0=11110 S imm10, hw1=11 J1 1 J2 imm11  (hw1 bit12=1)
     IF (hw0% AND &HF800) = &HF000 AND (hw1% AND &HD000) = &HD000 THEN
         tgt% = dis.bltgt32%(hw0%, hw1%, addr%)
-        dis.dec32$ = dis.fmtMne$("BL") + dis.lblOrHex$(tgt%)
+        dis.dec32$ = dis.fmtMne$("BL") + dis.lblName$(tgt%)
         EXIT FUNCTION
     END IF
 
     ' B.W (T4): hw0=11110 S imm10, hw1=10 J1 0 J2 imm11  (hw1 bits[15:14]=10, bit12=0)
     IF (hw0% AND &HF800) = &HF000 AND (hw1% AND &HD000) = &H9000 THEN
         tgt% = dis.bltgt32%(hw0%, hw1%, addr%)
-        dis.dec32$ = dis.fmtMne$("B.W") + dis.lblOrHex$(tgt%)
+        dis.dec32$ = dis.fmtMne$("B.W") + dis.lblName$(tgt%)
         EXIT FUNCTION
     END IF
 
@@ -1452,7 +1452,7 @@ FUNCTION dis.dec32$(hw0%, hw1%, addr%)
     IF (hw0% AND &HF800) = &HF000 AND (hw1% AND &HD000) = &H8000 AND ((hw0% >> 6) AND &HF) < &HE THEN
         cc4% = (hw0% >> 6) AND &HF
         tgt% = dis.bcctgt32%(hw0%, hw1%, addr%)
-        dis.dec32$ = dis.fmtMne$("B" + dis.cc$(cc4%) + ".W") + dis.lblOrHex$(tgt%)
+        dis.dec32$ = dis.fmtMne$("B" + dis.cc$(cc4%) + ".W") + dis.lblName$(tgt%)
         EXIT FUNCTION
     END IF
 
