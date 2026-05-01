@@ -14,17 +14,21 @@
 .thumb
 
 .equ    CONST8,   0x42
-.equ    CONST_W,  0x1234
+.equ    CONST_W,  0x12345678            @ 32-bit so LDR =CONST_W stays in pool
 
 start:
 
 @ ---------- Data processing (low-register T1) ----------
 
-        ADC     R0, R1                  @ Rd = Rd + Rm + C
+        ADCS    R0, R1                  @ Rd = Rd + Rm + C
         ADR     R4, lit_pool            @ positive offset, should be T1
-        ADD     R0, R1, #5              @ imm3
-        ADD     R0, R1, R2              @ register
-        ADD     R0, #200                @ imm8 to Rdn
+        ADDS    R0, R1, #5              @ imm3
+        ADDS    R0, R1, R2              @ register
+        
+	IT	EQ
+	ADDEQ   R0, R1, R2              @ register
+
+        ADDS    R0, #200                @ imm8 to Rdn
         ADD     R8, R9                  @ high-register form (no S)
 	B	next
 .align 2
@@ -36,31 +40,31 @@ next:	ADD     R0, SP, #20             @ Rd, SP, #imm8
         ADD     SP, SP, #16             @ SP-relative imm7*4
         ADD     R3, PC, #8              @ Rd, PC, #imm8 (T1 ADR alias)
         ADR.W   R4, lit_pool            @ negative offset, must be T2
-        AND     R0, R1
-        ASR     R0, R1, #5              @ immediate shift
-        ASR     R0, R1                  @ register shift
-        BIC     R0, R1
+        ANDS    R0, R1
+        ASRS    R0, R1, #5              @ immediate shift
+        ASRS    R0, R1                  @ register shift
+        BICS    R0, R1
         CMN     R0, R1
         CMP     R0, #100                @ imm8
         CMP     R0, R1                  @ low-low
         CMP     R8, R9                  @ high-register T2
-        EOR     R0, R1
-        LSL     R0, R1, #3
-        LSL     R0, R1
-        LSR     R0, R1, #3
-        LSR     R0, R1
+        EORS    R0, R1
+        LSLS    R0, R1, #3
+        LSLS    R0, R1
+        LSRS    R0, R1, #3
+        LSRS    R0, R1
         MOVS    R0, #200                @ imm8
         MOVS    R0, R1                  @ low-low (LSL #0 alias, T2)
         MOV     R8, R9                  @ high-register T1
-        MUL     R0, R1, R0              @ T1: Rdm = Rn * Rdm
-        MVN     R0, R1
-        ORR     R0, R1
-        ROR     R0, R1
+        MULS    R0, R1, R0              @ T1: Rdm = Rn * Rdm
+        MVNS    R0, R1
+        ORRS    R0, R1
+        RORS    R0, R1
         RSBS    R0, R1, #0              @ NEG alias, T1
-        SBC     R0, R1
-        SUB     R0, R1, #5              @ imm3
-        SUB     R0, R1, R2              @ register
-        SUB     R0, #200                @ imm8 to Rdn
+        SBCS    R0, R1
+        SUBS    R0, R1, #5              @ imm3
+        SUBS    R0, R1, R2              @ register
+        SUBS    R0, #200                @ imm8 to Rdn
         SUB     SP, SP, #16             @ SP-relative imm7*4
         TST     R0, R1
 

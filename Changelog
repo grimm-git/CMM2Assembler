@@ -3,6 +3,21 @@
 2026-05-01  1.0 (public release)
     * missing CSUB name caused an error, downgraded to a warning.
     * replacing statements i% = i% +1 with INC i%, reduced source by 2k
+    * `inc/disassembler.inc`: 16-bit T1 data-processing now decodes as
+      the S-form (ADDS, MOVS, ANDS, ...) since these encodings always set
+      flags. `dis.applyIT$` strips the trailing S inside an IT block so
+      `0x1888` after `ITEQ` decodes to `ADDEQ`, not `ADDSEQ`.
+      32-bit (.W) forms keep their explicit S bit.
+    * `inc/encoder.inc`: ADD/SUB inside IT block now picks 16-bit T1/T2
+      (3-op reg, 2-op reg, 3-op imm, 2-op imm) — matches GAS, was 32-bit T3.
+      Same fix extended to MOV/MVN/AND/EOR/ORR/BIC/ADC/SBC/RSB/MUL and
+      LSL/LSR/ASR/ROR (12 gates widened from S-only to S-or-IT).
+    * `inc/encoder.inc`: 2-op `MUL Rd,Rm` was emitting `Rd = Rm * Rm`
+      (rm aliased to rn instead of rd); fixed.
+    * `inc/encoder.inc`: merged 7 groups of near-duplicate encoders
+      (Add/Sub, Ldr/Str/Ldrx/Strx, Ldm/Stm/Ldmdb/Stmdb, Cmp/Cmn/Tst/Teq,
+      Push/Pop, Mla/Mls, Sat/Sat16) into shared bodies; -451 lines, output
+      byte-identical.
 
 2026-04-27  0.8 (### Lexer hardening, disassembler addr-0 fix)
     * `inc/lexer.inc`: `lexer.init` trims trailing whitespace/CR; over-length

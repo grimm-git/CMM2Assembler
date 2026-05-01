@@ -2,7 +2,7 @@
 ' literals.inc  -  Literal pool management (Phase 5)
 '
 ' LDR Rt,=value pseudo-instruction:
-'   1. encoder.doLdr emits a 16-bit LDR Rt,[PC,#0] placeholder and
+'   1. encoder.doMem emits a 16-bit LDR Rt,[PC,#0] placeholder and
 '      calls addLit(val%, refOff%) where refOff% is the halfword index
 '      of the placeholder.
 '   2. needsFlushLit%() returns 1 when the oldest pending literal is

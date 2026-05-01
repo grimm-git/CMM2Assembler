@@ -200,8 +200,11 @@ FUNCTION dis.applyIT$(s$, cc$)
     IF j% <= LEN(s$) THEN rest$ = MID$(s$, j%) ELSE rest$ = ""
     dot% = INSTR(mne$, ".")
     IF dot% > 0 THEN
+        ' 32-bit form (.W): both S and non-S encodings are valid inside IT — keep as-is.
         mne$ = LEFT$(mne$, dot% - 1) + cc$ + MID$(mne$, dot%)
     ELSE
+        ' 16-bit T1 always-flag-setting form: unified syntax inside IT drops the S.
+        IF LEN(mne$) > 1 AND RIGHT$(mne$, 1) = "S" THEN mne$ = LEFT$(mne$, LEN(mne$) - 1)
         mne$ = mne$ + cc$
     END IF
     IF rest$ = "" THEN dis.applyIT$ = mne$ ELSE dis.applyIT$ = dis.fmtMne$(mne$) + rest$
@@ -422,18 +425,18 @@ FUNCTION dis.decShift$(hw%, op%)
     LOCAL imm% = (hw% >> 6) AND &H1F
     LOCAL mne$ LENGTH 4
     SELECT CASE op%
-    CASE 0 : mne$ = "LSL"
-    CASE 1 : mne$ = "LSR"
-    CASE 2 : mne$ = "ASR"
+    CASE 0 : mne$ = "LSLS"
+    CASE 1 : mne$ = "LSRS"
+    CASE 2 : mne$ = "ASRS"
     END SELECT
     IF op% = 0 AND imm% = 0 THEN
-        dis.decShift$ = dis.fmtMne$("MOV") + dis.rn$(rd%) + "," + dis.rn$(rm%)
+        dis.decShift$ = dis.fmtMne$("MOVS") + dis.rn$(rd%) + "," + dis.rn$(rm%)
     ELSE
         dis.decShift$ = dis.fmtMne$(mne$) + dis.rn$(rd%) + "," + dis.rn$(rm%) + ",#" + STR$(imm%)
     END IF
 END FUNCTION
 
-' ADD/SUB register or #imm3  (top5=3)
+' ADD/SUB register or #imm3  (top5=3) — T1 always sets flags
 FUNCTION dis.decAddSub$(hw%)
     LOCAL rd%  = hw% AND 7
     LOCAL rn%  = (hw% >> 3) AND 7
@@ -441,7 +444,7 @@ FUNCTION dis.decAddSub$(hw%)
     LOCAL sub% = (hw% >> 9) AND 1
     LOCAL imm% = (hw% >> 10) AND 1
     LOCAL mne$ LENGTH 4
-    IF sub% THEN mne$ = "SUB" ELSE mne$ = "ADD"
+    IF sub% THEN mne$ = "SUBS" ELSE mne$ = "ADDS"
     IF imm% THEN
         dis.decAddSub$ = dis.fmtMne$(mne$) + dis.rn$(rd%) + "," + dis.rn$(rn%) + ",#" + STR$(op3%)
     ELSE
@@ -455,10 +458,10 @@ FUNCTION dis.decMovImm$(hw%, op%)
     LOCAL imm% = hw% AND &HFF
     LOCAL mne$ LENGTH 4
     SELECT CASE op%
-    CASE 0 : mne$ = "MOV"
+    CASE 0 : mne$ = "MOVS"
     CASE 1 : mne$ = "CMP"
-    CASE 2 : mne$ = "ADD"
-    CASE 3 : mne$ = "SUB"
+    CASE 2 : mne$ = "ADDS"
+    CASE 3 : mne$ = "SUBS"
     END SELECT
     dis.decMovImm$ = dis.fmtMne$(mne$) + dis.rn$(rn%) + ",#" + STR$(imm%)
 END FUNCTION
@@ -477,32 +480,32 @@ FUNCTION dis.decDP$(hw%)
     IF top6% = &H10 THEN
         ' Standard data processing (bits[15:10]=010000)
         SELECT CASE op4%
-        CASE  0 : mne$ = "AND"
-        CASE  1 : mne$ = "EOR"
-        CASE  2 : mne$ = "LSL"
-        CASE  3 : mne$ = "LSR"
-        CASE  4 : mne$ = "ASR"
-        CASE  5 : mne$ = "ADC"
-        CASE  6 : mne$ = "SBC"
-        CASE  7 : mne$ = "ROR"
+        CASE  0 : mne$ = "ANDS"
+        CASE  1 : mne$ = "EORS"
+        CASE  2 : mne$ = "LSLS"
+        CASE  3 : mne$ = "LSRS"
+        CASE  4 : mne$ = "ASRS"
+        CASE  5 : mne$ = "ADCS"
+        CASE  6 : mne$ = "SBCS"
+        CASE  7 : mne$ = "RORS"
         CASE  8 : mne$ = "TST"
-        CASE  9 : mne$ = "RSB"
+        CASE  9 : mne$ = "RSBS"
         CASE 10 : mne$ = "CMP"
         CASE 11 : mne$ = "CMN"
-        CASE 12 : mne$ = "ORR"
-        CASE 13 : mne$ = "MUL"
-        CASE 14 : mne$ = "BIC"
-        CASE 15 : mne$ = "MVN"
+        CASE 12 : mne$ = "ORRS"
+        CASE 13 : mne$ = "MULS"
+        CASE 14 : mne$ = "BICS"
+        CASE 15 : mne$ = "MVNS"
         END SELECT
         SELECT CASE op4%
         CASE 8, 10, 11  ' TST, CMP, CMN – no dest
             dis.decDP$ = dis.fmtMne$(mne$) + dis.rn$(rd%) + "," + dis.rn$(rm%)
-        CASE 9          ' RSB Rd,Rm,#0
-            dis.decDP$ = dis.fmtMne$("RSB") + dis.rn$(rd%) + "," + dis.rn$(rm%) + ",#0"
-        CASE 13         ' MUL Rd,Rm,Rd
-            dis.decDP$ = dis.fmtMne$("MUL") + dis.rn$(rd%) + "," + dis.rn$(rm%) + "," + dis.rn$(rd%)
-        CASE 15         ' MVN Rd,Rm
-            dis.decDP$ = dis.fmtMne$("MVN") + dis.rn$(rd%) + "," + dis.rn$(rm%)
+        CASE 9          ' RSBS Rd,Rm,#0
+            dis.decDP$ = dis.fmtMne$("RSBS") + dis.rn$(rd%) + "," + dis.rn$(rm%) + ",#0"
+        CASE 13         ' MULS Rd,Rm,Rd
+            dis.decDP$ = dis.fmtMne$("MULS") + dis.rn$(rd%) + "," + dis.rn$(rm%) + "," + dis.rn$(rd%)
+        CASE 15         ' MVNS Rd,Rm
+            dis.decDP$ = dis.fmtMne$("MVNS") + dis.rn$(rd%) + "," + dis.rn$(rm%)
         CASE ELSE
             dis.decDP$ = dis.fmtMne$(mne$) + dis.rn$(rd%) + "," + dis.rn$(rm%)
         END SELECT
